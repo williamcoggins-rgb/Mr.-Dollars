@@ -1,0 +1,1 @@
+"""Mr. Dollars web API."""
