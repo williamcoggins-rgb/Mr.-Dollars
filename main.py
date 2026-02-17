@@ -13,7 +13,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import sys
+import os
 from datetime import date
 
 
@@ -61,11 +61,14 @@ def run_demo():
 def run_server(host: str, port: int):
     """Start the Mr. Dollars web server."""
     import uvicorn
+
+    # In production (Railway sets PORT env var), disable reload
+    is_production = os.environ.get("RAILWAY_ENVIRONMENT") is not None
     uvicorn.run(
         "mr_dollars.api.app:app",
         host=host,
         port=port,
-        reload=True,
+        reload=not is_production,
         log_level="info",
     )
 
@@ -87,8 +90,8 @@ def main():
     parser.add_argument(
         "--port",
         type=int,
-        default=8000,
-        help="Server port (default: 8000)",
+        default=int(os.environ.get("PORT", 8000)),
+        help="Server port (default: 8000, or PORT env var)",
     )
     args = parser.parse_args()
 
