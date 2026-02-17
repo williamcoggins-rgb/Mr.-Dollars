@@ -68,6 +68,20 @@ class DollarAvatar {
         // Sparkles
         this.sparkles = [];
 
+        // Roaming position (screen coordinates)
+        this.posX = window.innerWidth - this.charW - 40;
+        this.posY = 60;
+        this.targetX = this.posX;
+        this.targetY = this.posY;
+        this.facingLeft = false;
+        this.walkSpeed = 0;
+
+        // Roaming timer
+        this.roamTimer = 0;
+        this.roamInterval = 300 + Math.random() * 200;
+        this.currentStation = 'home';
+
+        this._updateStations();
         this._setupCanvas();
         this._bindEvents();
         this._animate();
@@ -83,6 +97,28 @@ class DollarAvatar {
         this.w = this.charW;
         this.h = this.charH;
         this.scale = 0.62;
+        this._applyPosition();
+    }
+
+    _applyPosition() {
+        // Clamp to viewport
+        this.posX = Math.max(-40, Math.min(window.innerWidth - this.charW + 40, this.posX));
+        this.posY = Math.max(40, Math.min(window.innerHeight - this.charH + 40, this.posY));
+        this.canvas.style.left = Math.round(this.posX) + 'px';
+        this.canvas.style.top = Math.round(this.posY) + 'px';
+    }
+
+    _updateStations() {
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        this.stations = {
+            home:       { x: vw - this.charW - 40, y: 60 },
+            scoreboard: { x: vw * 0.55,  y: 120 },
+            decisions:  { x: vw * 0.08,  y: vh * 0.35 },
+            actions:    { x: vw * 0.55,  y: vh * 0.35 },
+            tools:      { x: vw * 0.25,  y: vh * 0.6 },
+            center:     { x: (vw - this.charW) / 2, y: vh * 0.2 },
+        };
     }
 
     _bindEvents() {
@@ -95,6 +131,8 @@ class DollarAvatar {
             this.wave();
             this.sparkle();
         });
+
+        window.addEventListener('resize', () => this._updateStations());
     }
 
     // === Main Loop ===
@@ -187,6 +225,41 @@ class DollarAvatar {
             s.rotation += s.rotSpeed;
             return s.life > 0;
         });
+
+        // --- Roaming movement ---
+        this.roamTimer++;
+        if (this.roamTimer > this.roamInterval && !this.isTalking) {
+            this._pickNextStation();
+            this.roamTimer = 0;
+            this.roamInterval = 250 + Math.random() * 350;
+        }
+
+        // Smooth eased movement toward target
+        const dx = this.targetX - this.posX;
+        const dy = this.targetY - this.posY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist > 3) {
+            const ease = 0.04;
+            this.posX += dx * ease;
+            this.posY += dy * ease;
+            this.walkSpeed = Math.min(dist * 0.025, 1);
+            this.facingLeft = dx < -5;
+            this._applyPosition();
+        } else {
+            this.walkSpeed *= 0.9; // gentle stop
+        }
+    }
+
+    _pickNextStation() {
+        const keys = Object.keys(this.stations).filter(k => k !== this.currentStation);
+        const next = keys[Math.floor(Math.random() * keys.length)];
+        this.currentStation = next;
+        const st = this.stations[next];
+        if (st) {
+            this.targetX = st.x + (Math.random() - 0.5) * 60;
+            this.targetY = st.y + (Math.random() - 0.5) * 30;
+        }
     }
 
     _draw() {
@@ -210,6 +283,8 @@ class DollarAvatar {
 
         ctx.translate(bobX, bobY);
         ctx.rotate(tilt);
+        // Flip when facing left
+        if (this.facingLeft) ctx.scale(-1, 1);
         ctx.scale(this.squashX * breathScale, this.squashY * (2 - breathScale));
 
         // Draw order: shadow, legs, left arm, body, face, right arm, hat
@@ -244,8 +319,10 @@ class DollarAvatar {
     }
 
     _drawLegs(ctx, s) {
-        const walkPhase = this.t * 2.5;
-        const legSwing = this.mood === 'celebrating' ? 12 : 4;
+        const walkMult = this.walkSpeed > 0.1 ? 7 : 2.5;
+        const walkPhase = this.t * walkMult;
+        const baseSwing = this.mood === 'celebrating' ? 12 : 4;
+        const legSwing = baseSwing + this.walkSpeed * 22;
         const leftAngle = Math.sin(walkPhase) * legSwing * (Math.PI / 180);
         const rightAngle = Math.sin(walkPhase + Math.PI) * legSwing * (Math.PI / 180);
 
@@ -795,6 +872,43 @@ class DollarAvatar {
         else if (hasReject) this.setMood('cautious');
         else if (s.net_margin > 0.3 && s.utilization > 0.7 && s.rebook_rate > 0.45) this.setMood('celebrating');
         else this.setMood('confident');
+    }
+
+    /**
+     * Move to a specific screen position.
+     */
+    moveTo(x, y) {
+        this.targetX = x;
+        this.targetY = y;
+        this.roamTimer = 0;
+    }
+
+    /**
+     * Move to a named station.
+     */
+    moveToStation(name) {
+        this._updateStations();
+        const st = this.stations[name];
+        if (st) {
+            this.currentStation = name;
+            this.targetX = st.x;
+            this.targetY = st.y;
+            this.roamTimer = 0;
+        }
+    }
+
+    /**
+     * Get the current position (for speech bubble tracking).
+     */
+    getPosition() {
+        return {
+            x: this.posX + this.charW / 2,
+            y: this.posY,
+            left: this.posX,
+            top: this.posY,
+            right: this.posX + this.charW,
+            bottom: this.posY + this.charH,
+        };
     }
 
     talk(duration = 120) {

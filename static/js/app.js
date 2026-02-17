@@ -119,6 +119,33 @@
         }
     }
 
+    // === Speech bubble positioning (tracks avatar every frame) ===
+
+    function positionSpeechBubble() {
+        const bubble = document.getElementById('speech-bubble');
+        if (!bubble || !avatar) return;
+
+        const pos = avatar.getPosition();
+        // Place bubble above-left of the avatar
+        let bx = pos.left - 260;
+        let by = pos.top - 10;
+
+        // If off-screen left, flip to the right side
+        if (bx < 10) bx = pos.right + 10;
+        // If off-screen top, push down
+        if (by < 50) by = pos.top + 60;
+        // If off-screen bottom
+        if (by > window.innerHeight - 180) by = pos.top - 160;
+
+        bubble.style.left = Math.round(bx) + 'px';
+        bubble.style.top = Math.round(by) + 'px';
+    }
+
+    function bubbleTracker() {
+        positionSpeechBubble();
+        requestAnimationFrame(bubbleTracker);
+    }
+
     // === Speech messages ===
 
     const speechMessages = {
@@ -154,21 +181,21 @@
         ],
     };
 
-    // === Speech card (in-stage, not floating) ===
+    // === Speech bubble show/hide ===
 
     let speechHideTimer = null;
 
-    function showSpeechCard() {
-        const card = document.getElementById('speech-card');
-        if (card) card.classList.add('visible');
+    function showSpeechBubble() {
+        const bubble = document.getElementById('speech-bubble');
+        if (bubble) bubble.classList.add('visible');
         if (speechHideTimer) clearTimeout(speechHideTimer);
     }
 
-    function hideSpeechCard(delay = 5000) {
+    function hideSpeechBubble(delay = 5000) {
         if (speechHideTimer) clearTimeout(speechHideTimer);
         speechHideTimer = setTimeout(() => {
-            const card = document.getElementById('speech-card');
-            if (card) card.classList.remove('visible');
+            const bubble = document.getElementById('speech-bubble');
+            if (bubble) bubble.classList.remove('visible');
         }, delay);
     }
 
@@ -209,8 +236,8 @@
         const label = document.getElementById('mood-label');
         if (label) { label.textContent = `Mood: ${mood}`; }
 
-        showSpeechCard();
-        hideSpeechCard(msg.length * 65 + 4000);
+        showSpeechBubble();
+        hideSpeechBubble(msg.length * 65 + 4000);
     }
 
     // === WebSocket ===
@@ -270,11 +297,24 @@
             avatar.setMoodFromReport(report);
             avatar.bounce();
 
+            // Walk to scoreboard to present
+            avatar.moveToStation('scoreboard');
+
             // Speak after a beat
             setTimeout(() => speak(avatar.mood), 400);
 
             // Sparkle after speech starts
             setTimeout(() => { if (avatar) avatar.sparkle(); }, 1200);
+
+            // Walk to decisions after presenting scoreboard
+            setTimeout(() => {
+                if (avatar) avatar.moveToStation('decisions');
+            }, 5000);
+
+            // Return home after tour
+            setTimeout(() => {
+                if (avatar) avatar.moveToStation('home');
+            }, 10000);
         }
     }
 
@@ -282,6 +322,7 @@
         const btn = document.getElementById('btn-generate');
         if (btn) { btn.textContent = 'Generating...'; btn.disabled = true; }
 
+        if (avatar) avatar.moveToStation('center');
         speak('idle');
         if (avatar) avatar.talk(120);
 
@@ -300,7 +341,7 @@
     }
 
     async function loadDemo() {
-        if (avatar) { avatar.wave(); }
+        if (avatar) { avatar.moveToStation('center'); avatar.wave(); }
 
         try {
             const response = await fetch('/api/report/demo');
@@ -323,7 +364,7 @@
         const input = document.getElementById('cashflows-input');
         if (!input || !input.value.trim()) return;
 
-        if (avatar) avatar.talk(60);
+        if (avatar) { avatar.moveToStation('tools'); avatar.talk(60); }
 
         try {
             const cashflows = input.value.split(',').map(v => parseFloat(v.trim()));
@@ -377,6 +418,9 @@
         // WebSocket + Loom
         connectWebSocket();
         checkLoomConnection();
+
+        // Start speech bubble tracker (follows avatar every frame)
+        bubbleTracker();
 
         // Entrance choreography
         setTimeout(() => {

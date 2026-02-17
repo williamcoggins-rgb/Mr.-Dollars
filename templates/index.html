@@ -27,27 +27,6 @@
             </div>
         </header>
 
-        <!-- ================================================
-             PRESENTER STAGE — Mr. Dollars lives here.
-             He's big, center-stage, with his speech card
-             beside him. This is his bank lobby.
-             ================================================ -->
-        <section class="presenter-stage">
-            <div class="presenter-avatar-area">
-                <div class="avatar-glow-ring"></div>
-                <canvas id="dollar-canvas" width="320" height="400"></canvas>
-            </div>
-            <div class="presenter-speech">
-                <div id="speech-card" class="speech-card">
-                    <div id="speech-text">Standing by for your report.</div>
-                    <div class="mood-indicator">
-                        <div id="mood-dot" class="mood-dot confident"></div>
-                        <span id="mood-label">Mood: confident</span>
-                    </div>
-                </div>
-            </div>
-        </section>
-
         <!-- Main Dashboard -->
         <main class="dashboard">
 
@@ -116,6 +95,18 @@
                 <span id="report-timestamp"></span>
             </div>
         </main>
+    </div>
+
+    <!-- Roaming Mr. Dollars — fixed overlay, positioned by JS -->
+    <canvas id="dollar-canvas" width="320" height="400"></canvas>
+
+    <!-- Speech bubble — follows avatar, positioned by JS -->
+    <div id="speech-bubble" class="speech-bubble">
+        <div id="speech-text">Standing by for your report.</div>
+        <div class="mood-indicator">
+            <div id="mood-dot" class="mood-dot confident"></div>
+            <span id="mood-label">Mood: confident</span>
+        </div>
     </div>
 
     <!-- Bottom Control Strip -->
