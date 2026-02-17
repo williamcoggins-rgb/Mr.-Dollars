@@ -1,7 +1,7 @@
 /**
  * Mr. Dollars — Main Application
  *
- * Initializes the 3D avatar, dashboard, and WebSocket connection.
+ * Initializes the cartoon avatar, dashboard, and WebSocket connection.
  * Coordinates data flow between backend and UI components.
  */
 
@@ -74,6 +74,11 @@
         const messages = speechMessages[mood] || speechMessages.idle;
         const msg = messages[Math.floor(Math.random() * messages.length)];
         typeText(speechEl, msg);
+
+        // Trigger avatar talking animation while text types
+        if (avatar && avatar.talk) {
+            avatar.talk(Math.floor(msg.length * 1.5));
+        }
 
         if (moodEl) {
             moodEl.textContent = `Mood: ${mood}`;
@@ -257,11 +262,9 @@
         // Initialize dashboard
         dashboard = new Dashboard();
 
-        // Initialize 3D avatar (only if Three.js loaded)
-        if (typeof THREE !== 'undefined') {
+        // Initialize cartoon avatar
+        if (typeof DollarAvatar !== 'undefined') {
             avatar = new DollarAvatar('dollar-canvas');
-        } else {
-            console.warn('Three.js not loaded; avatar disabled.');
         }
 
         // Wire up buttons
