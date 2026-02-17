@@ -1,36 +1,42 @@
 /**
- * Mr. Dollars — Cartoon Dollar Bill Character
+ * Mr. Dollars — Roaming Cartoon Dollar Bill Character
  *
  * Full cartoon character rendered on HTML5 Canvas 2D.
- * A dollar bill with big expressive eyes, cartoon arms with white gloves,
- * legs with shoes, and animated expressions. Inspired by classic cartoon
- * mascot style (Miss Minutes aesthetic, but as a dollar bill).
+ * Roams freely around the screen, visiting dashboard sections,
+ * pointing at metrics, and reacting to data.
  *
- * Features:
- * - Smooth idle bobbing and swaying
- * - Eye tracking (follows mouse)
- * - Blinking animation
- * - Mouth shapes for moods and talking
- * - Arm waving and gestures
- * - Leg walk/tap animation
- * - Sparkle/shine effects
- * - Mood-reactive expressions and colors
+ * Miss Minutes-style: not locked in a panel — he OWNS the screen.
  */
 
 class DollarAvatar {
-    constructor(containerId) {
-        this.container = document.getElementById(containerId);
-        if (!this.container) return;
-
-        this.canvas = document.createElement('canvas');
+    constructor(canvasId) {
+        this.canvas = document.getElementById(canvasId);
+        if (!this.canvas) return;
         this.ctx = this.canvas.getContext('2d');
-        this.container.appendChild(this.canvas);
+
+        // Canvas size (character viewport)
+        this.charW = 200;
+        this.charH = 260;
 
         // State
         this.mood = 'confident';
         this.t = 0;
         this.mouseX = 0.5;
         this.mouseY = 0.5;
+
+        // Position on screen (top-left of canvas)
+        this.posX = window.innerWidth - 240;
+        this.posY = 80;
+        this.targetX = this.posX;
+        this.targetY = this.posY;
+        this.facingLeft = false;
+
+        // Roaming state
+        this.isRoaming = false;
+        this.roamTimer = 0;
+        this.roamInterval = 360;  // frames between roams (~6s at 60fps)
+        this.currentStation = 'home';
+        this.walkSpeed = 0;
 
         // Animation state
         this.blinkTimer = 0;
@@ -47,65 +53,68 @@ class DollarAvatar {
         this.waveTimer = 0;
 
         this.sparkles = [];
-        this.floatingDollars = [];
 
-        // Squash/stretch for bounce
+        // Squash/stretch
         this.squashX = 1;
         this.squashY = 1;
         this.targetSquashX = 1;
         this.targetSquashY = 1;
 
-        // Expression overrides
-        this.eyebrowRaise = 0;
         this.mouthOpenness = 0;
 
-        this._initFloatingDollars();
-        this._resize();
+        // Stations — positions Mr. Dollars roams to
+        this._updateStations();
+
+        this._setupCanvas();
         this._bindEvents();
         this._animate();
     }
 
-    _resize() {
-        const rect = this.container.getBoundingClientRect();
+    _setupCanvas() {
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
-        this.w = rect.width;
-        this.h = rect.height;
-        this.canvas.width = this.w * dpr;
-        this.canvas.height = this.h * dpr;
-        this.canvas.style.width = this.w + 'px';
-        this.canvas.style.height = this.h + 'px';
+        this.canvas.width = this.charW * dpr;
+        this.canvas.height = this.charH * dpr;
+        this.canvas.style.width = this.charW + 'px';
+        this.canvas.style.height = this.charH + 'px';
         this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        this.w = this.charW;
+        this.h = this.charH;
+        this.scale = 0.42;
+        this._applyPosition();
+    }
 
-        // Character dimensions scale to canvas
-        this.scale = Math.min(this.w, this.h) / 500;
+    _applyPosition() {
+        this.canvas.style.left = Math.round(this.posX) + 'px';
+        this.canvas.style.top = Math.round(this.posY) + 'px';
+    }
+
+    _updateStations() {
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        this.stations = {
+            home:       { x: vw - 240, y: 80 },
+            scoreboard: { x: vw * 0.55, y: 100 },
+            decisions:  { x: vw * 0.12, y: vh * 0.38 },
+            actions:    { x: vw * 0.58, y: vh * 0.38 },
+            tools:      { x: vw * 0.3,  y: vh * 0.68 },
+            center:     { x: vw * 0.45, y: vh * 0.35 },
+        };
     }
 
     _bindEvents() {
-        this.container.addEventListener('mousemove', (e) => {
-            const rect = this.container.getBoundingClientRect();
-            this.mouseX = (e.clientX - rect.left) / rect.width;
-            this.mouseY = (e.clientY - rect.top) / rect.height;
+        document.addEventListener('mousemove', (e) => {
+            this.mouseX = e.clientX / window.innerWidth;
+            this.mouseY = e.clientY / window.innerHeight;
         });
 
-        this.container.addEventListener('click', () => {
+        this.canvas.addEventListener('click', () => {
             this.wave();
             this.sparkle();
         });
 
-        window.addEventListener('resize', () => this._resize());
-    }
-
-    _initFloatingDollars() {
-        for (let i = 0; i < 8; i++) {
-            this.floatingDollars.push({
-                x: Math.random(),
-                y: Math.random(),
-                size: 8 + Math.random() * 14,
-                speed: 0.2 + Math.random() * 0.4,
-                opacity: 0.1 + Math.random() * 0.15,
-                phase: Math.random() * Math.PI * 2,
-            });
-        }
+        window.addEventListener('resize', () => {
+            this._updateStations();
+        });
     }
 
     // --- Main draw loop ---
@@ -121,7 +130,7 @@ class DollarAvatar {
     }
 
     _update() {
-        // Blink logic
+        // Blink
         this.blinkTimer++;
         if (!this.isBlinking && this.blinkTimer > this.nextBlink) {
             this.isBlinking = true;
@@ -136,7 +145,7 @@ class DollarAvatar {
             }
         }
 
-        // Talk animation
+        // Talk
         if (this.isTalking) {
             this.talkPhase += 0.3;
             this.talkTimer--;
@@ -147,17 +156,14 @@ class DollarAvatar {
             }
         }
 
-        // Wave animation
+        // Wave
         if (this.isWaving) {
             this.wavePhase += 0.12;
             this.waveTimer--;
-            if (this.waveTimer <= 0) {
-                this.isWaving = false;
-                this.wavePhase = 0;
-            }
+            if (this.waveTimer <= 0) { this.isWaving = false; this.wavePhase = 0; }
         }
 
-        // Squash/stretch smoothing
+        // Squash/stretch
         this.squashX += (this.targetSquashX - this.squashX) * 0.15;
         this.squashY += (this.targetSquashY - this.squashY) * 0.15;
         this.targetSquashX += (1 - this.targetSquashX) * 0.08;
@@ -171,21 +177,56 @@ class DollarAvatar {
             s.vy *= 0.98;
             return s.life > 0;
         });
+
+        // --- Roaming movement ---
+        this.roamTimer++;
+        if (this.roamTimer > this.roamInterval && !this.isTalking) {
+            this._pickNextStation();
+            this.roamTimer = 0;
+            this.roamInterval = 300 + Math.random() * 300;
+        }
+
+        // Smooth movement toward target
+        const dx = this.targetX - this.posX;
+        const dy = this.targetY - this.posY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist > 2) {
+            const ease = 0.035;
+            this.posX += dx * ease;
+            this.posY += dy * ease;
+            this.walkSpeed = Math.min(dist * 0.03, 1);
+            this.facingLeft = dx < 0;
+            this._applyPosition();
+        } else {
+            this.walkSpeed = 0;
+        }
+    }
+
+    _pickNextStation() {
+        const keys = Object.keys(this.stations).filter(k => k !== this.currentStation);
+        const next = keys[Math.floor(Math.random() * keys.length)];
+        this.currentStation = next;
+        const st = this.stations[next];
+        if (st) {
+            this.targetX = st.x + (Math.random() - 0.5) * 40;
+            this.targetY = st.y + (Math.random() - 0.5) * 20;
+        }
     }
 
     _draw() {
         const ctx = this.ctx;
         const cx = this.w / 2;
-        const cy = this.h / 2 + 10;
+        const cy = this.h / 2 + 20;
         const s = this.scale;
 
         ctx.clearRect(0, 0, this.w, this.h);
 
-        // Background floating dollar signs
-        this._drawFloatingDollars(ctx);
-
         ctx.save();
         ctx.translate(cx, cy);
+
+        // Flip if facing left
+        if (this.facingLeft) ctx.scale(-1, 1);
 
         // Idle bob
         const bobY = Math.sin(this.t * 2.0) * 8 * s;
@@ -226,8 +267,10 @@ class DollarAvatar {
     }
 
     _drawLegs(ctx, s) {
-        const walkPhase = this.t * 3;
-        const legSwing = this.mood === 'celebrating' ? 15 : 5;
+        const walkMult = this.walkSpeed > 0.1 ? 8 : 3;
+        const walkPhase = this.t * walkMult;
+        const baseSwing = this.mood === 'celebrating' ? 15 : 5;
+        const legSwing = baseSwing + this.walkSpeed * 25;
         const leftLegAngle = Math.sin(walkPhase) * legSwing * (Math.PI / 180);
         const rightLegAngle = Math.sin(walkPhase + Math.PI) * legSwing * (Math.PI / 180);
 
@@ -691,24 +734,6 @@ class DollarAvatar {
 
     // --- Effects ---
 
-    _drawFloatingDollars(ctx) {
-        ctx.save();
-        for (const fd of this.floatingDollars) {
-            fd.y -= fd.speed * 0.001;
-            if (fd.y < -0.1) fd.y = 1.1;
-
-            const x = fd.x * this.w + Math.sin(this.t * fd.speed + fd.phase) * 20;
-            const y = fd.y * this.h;
-
-            ctx.globalAlpha = fd.opacity;
-            ctx.font = `${fd.size}px serif`;
-            ctx.textAlign = 'center';
-            ctx.fillStyle = '#FFD700';
-            ctx.fillText('$', x, y);
-        }
-        ctx.restore();
-    }
-
     _drawSparkles(ctx) {
         for (const sp of this.sparkles) {
             ctx.save();
@@ -808,6 +833,57 @@ class DollarAvatar {
         } else {
             this.setMood('confident');
         }
+    }
+
+    /**
+     * Move to a specific screen position.
+     */
+    moveTo(x, y) {
+        this.targetX = x;
+        this.targetY = y;
+        this.roamTimer = 0; // reset roam timer
+    }
+
+    /**
+     * Move next to a DOM element (e.g., a dashboard section).
+     */
+    moveToElement(selector, side = 'right') {
+        const el = document.querySelector(selector);
+        if (!el) return;
+        const rect = el.getBoundingClientRect();
+        if (side === 'right') {
+            this.moveTo(rect.right + 10, rect.top);
+        } else {
+            this.moveTo(rect.left - this.charW - 10, rect.top);
+        }
+    }
+
+    /**
+     * Move to a named station.
+     */
+    moveToStation(name) {
+        this._updateStations();
+        const st = this.stations[name];
+        if (st) {
+            this.currentStation = name;
+            this.targetX = st.x;
+            this.targetY = st.y;
+            this.roamTimer = 0;
+        }
+    }
+
+    /**
+     * Get the current center position of the avatar (for speech bubble).
+     */
+    getPosition() {
+        return {
+            x: this.posX + this.charW / 2,
+            y: this.posY,
+            left: this.posX,
+            top: this.posY,
+            right: this.posX + this.charW,
+            bottom: this.posY + this.charH,
+        };
     }
 
     talk(duration = 120) {

@@ -3,139 +3,113 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mr. Dollars — Financial Intelligence Assistant</title>
+    <title>Mr. Dollars — Financial Intelligence</title>
     <link rel="stylesheet" href="/static/css/style.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div class="app-container">
+    <div class="vault-app">
 
-        <!-- Header -->
-        <header class="header">
-            <div class="header-brand">
-                <div>
-                    <h1>MR. DOLLARS</h1>
-                    <div class="subtitle">Financial Intelligence Assistant</div>
-                </div>
+        <!-- Top Bar -->
+        <header class="top-bar">
+            <div class="brand">
+                <h1>Mr. Dollars</h1>
+                <span class="tagline">Financial Intelligence</span>
             </div>
-            <div class="header-status">
-                <span id="report-period" style="font-size:0.8rem; color:#9ca3af;"></span>
-                <div class="status-indicator">
+            <div class="top-bar-right">
+                <span id="report-period" class="period-label"></span>
+                <div class="connection-badge">
                     <div id="connection-dot" class="status-dot disconnected"></div>
-                    <span id="connection-label">Connecting...</span>
+                    <span id="connection-label">Connecting</span>
                 </div>
             </div>
         </header>
 
-        <!-- Left: Avatar Panel -->
-        <aside class="avatar-panel">
-            <div id="dollar-canvas"></div>
+        <!-- Main Dashboard -->
+        <main class="dashboard">
 
-            <div id="avatar-speech" class="avatar-speech">
-                Initializing Mr. Dollars...
-            </div>
-
-            <div id="avatar-mood" class="avatar-mood">Mood: initializing</div>
-
-            <div class="avatar-controls">
-                <button id="btn-generate" class="btn btn-primary">
-                    Generate Report
-                </button>
-                <button id="btn-demo" class="btn btn-gold">
-                    Load Demo Data
-                </button>
-            </div>
-
-            <!-- Time Loom Status -->
-            <div style="margin-top:24px; width:100%; max-width:360px;">
-                <div class="section-title">Time Loom Connection</div>
-                <div id="loom-status" class="loom-status">
-                    <div class="loom-icon">$</div>
-                    <div class="loom-info">
-                        <div class="label">Time Loom</div>
-                        <div class="value">Checking...</div>
-                    </div>
-                </div>
-            </div>
-        </aside>
-
-        <!-- Right: Dashboard Panel -->
-        <main class="dashboard-panel">
             <!-- Scoreboard -->
-            <section class="dashboard-section">
-                <h2 class="section-title">Scoreboard</h2>
+            <section class="scoreboard-section" id="section-scoreboard">
+                <div class="section-header">
+                    <h2>Scoreboard</h2>
+                    <div class="section-line"></div>
+                </div>
                 <div id="scoreboard-grid" class="scoreboard-grid">
-                    <!-- Skeleton placeholders -->
-                    <div class="metric-card">
-                        <div class="skeleton" style="width:60%; height:12px; margin-bottom:8px;"></div>
-                        <div class="skeleton" style="width:40%; height:24px;"></div>
-                    </div>
-                    <div class="metric-card">
-                        <div class="skeleton" style="width:60%; height:12px; margin-bottom:8px;"></div>
-                        <div class="skeleton" style="width:40%; height:24px;"></div>
-                    </div>
-                    <div class="metric-card">
-                        <div class="skeleton" style="width:60%; height:12px; margin-bottom:8px;"></div>
-                        <div class="skeleton" style="width:40%; height:24px;"></div>
-                    </div>
-                    <div class="metric-card">
-                        <div class="skeleton" style="width:60%; height:12px; margin-bottom:8px;"></div>
-                        <div class="skeleton" style="width:40%; height:24px;"></div>
-                    </div>
+                    <div class="glass-card metric-card"><div class="skeleton" style="width:50%;height:10px;margin-bottom:10px"></div><div class="skeleton" style="width:35%;height:24px"></div></div>
+                    <div class="glass-card metric-card"><div class="skeleton" style="width:50%;height:10px;margin-bottom:10px"></div><div class="skeleton" style="width:35%;height:24px"></div></div>
+                    <div class="glass-card metric-card"><div class="skeleton" style="width:50%;height:10px;margin-bottom:10px"></div><div class="skeleton" style="width:35%;height:24px"></div></div>
+                    <div class="glass-card metric-card"><div class="skeleton" style="width:50%;height:10px;margin-bottom:10px"></div><div class="skeleton" style="width:35%;height:24px"></div></div>
                 </div>
             </section>
 
-            <!-- Decisions -->
-            <section class="dashboard-section">
-                <h2 class="section-title">Decisions</h2>
-                <div id="decisions-list" class="decisions-list">
-                    <div class="decision-card">
-                        <div class="skeleton" style="width:100%; height:48px;"></div>
+            <!-- Decisions + Actions -->
+            <div class="two-col">
+                <section id="section-decisions">
+                    <div class="section-header">
+                        <h2>Decisions</h2>
+                        <div class="section-line"></div>
                     </div>
-                </div>
-            </section>
+                    <div id="decisions-list" class="decisions-list">
+                        <div class="glass-card decision-row"><div class="skeleton" style="width:100%;height:40px"></div></div>
+                    </div>
+                </section>
 
-            <!-- Next Actions -->
-            <section class="dashboard-section">
-                <h2 class="section-title">Next Actions</h2>
-                <div id="actions-list" class="actions-list">
-                    <div class="action-item">
-                        <div class="skeleton" style="width:100%; height:20px;"></div>
+                <section id="section-actions">
+                    <div class="section-header">
+                        <h2>Next Actions</h2>
+                        <div class="section-line"></div>
                     </div>
-                </div>
-            </section>
+                    <div id="actions-list" class="actions-list">
+                        <div class="glass-card action-row"><div class="skeleton" style="width:100%;height:20px"></div></div>
+                    </div>
+                </section>
+            </div>
 
-            <!-- Capital Project Evaluator -->
-            <section class="dashboard-section">
-                <h2 class="section-title">Capital Project Evaluator</h2>
-                <div class="capital-form">
-                    <div class="form-row">
-                        <span class="form-label">Cash flows</span>
-                        <input id="cashflows-input"
-                               class="form-input"
-                               type="text"
-                               placeholder="-5000, 1500, 1800, 2000, 2200"
-                               title="Comma-separated cash flows. First value is typically negative (investment).">
-                    </div>
-                    <div class="form-row">
-                        <span class="form-label"></span>
-                        <button id="btn-evaluate-capital" class="btn" style="flex:1;">
-                            Evaluate NPV / IRR
-                        </button>
+            <!-- Tools Row -->
+            <div class="tools-row">
+                <div class="glass-card tool-panel">
+                    <h3>Capital Evaluator</h3>
+                    <div class="capital-input-row">
+                        <input id="cashflows-input" class="capital-input" type="text"
+                               placeholder="-5000, 1500, 1800, 2000, 2200">
+                        <button id="btn-evaluate-capital" class="btn btn-gold">Evaluate</button>
                     </div>
                     <div id="capital-result"></div>
                 </div>
-            </section>
 
-            <!-- Report Metadata -->
-            <section class="dashboard-section" style="opacity:0.5;">
-                <span id="report-timestamp" style="font-size:0.72rem; color:#6b7280;"></span>
-            </section>
+                <div class="glass-card tool-panel">
+                    <h3>Time Loom</h3>
+                    <div id="loom-status" class="loom-status-card">
+                        <div class="loom-badge">$</div>
+                        <div class="loom-details">
+                            <div class="loom-label">Connection</div>
+                            <div class="loom-value">Checking...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="opacity:0.4;">
+                <span id="report-timestamp" style="font-family:var(--font-mono);font-size:0.6rem;color:var(--text-muted)"></span>
+            </div>
         </main>
     </div>
 
-    <!-- Mr. Dollars scripts (no external 3D libs needed — pure Canvas 2D cartoon) -->
+    <!-- Roaming Mr. Dollars (canvas overlay — positioned by JS) -->
+    <canvas id="dollar-canvas" width="200" height="260"></canvas>
+
+    <!-- Speech bubble (positioned by JS near avatar) -->
+    <div id="speech-bubble" class="speech-bubble">
+        <span id="speech-text">Initializing...</span>
+        <div id="mood-label" class="mood-label">Mood: initializing</div>
+    </div>
+
+    <!-- Bottom Control Strip -->
+    <div class="control-strip">
+        <button id="btn-generate" class="btn btn-green">Generate Report</button>
+        <button id="btn-demo" class="btn btn-gold">Load Demo</button>
+    </div>
+
+    <!-- Scripts -->
     <script src="/static/js/dollar-avatar.js"></script>
     <script src="/static/js/dashboard.js"></script>
     <script src="/static/js/app.js"></script>

@@ -1,8 +1,8 @@
 /**
  * Mr. Dollars — Main Application
  *
- * Initializes the cartoon avatar, dashboard, and WebSocket connection.
- * Coordinates data flow between backend and UI components.
+ * Initializes the roaming cartoon avatar, dashboard, and WebSocket.
+ * Speech bubble follows the avatar as it moves around the screen.
  */
 
 (function () {
@@ -11,11 +11,14 @@
     let avatar = null;
     let dashboard = null;
     let ws = null;
-    let reconnectTimer = null;
     let reconnectAttempts = 0;
     const MAX_RECONNECT = 10;
 
-    // Speech bubble typewriter effect
+    const speechBubble = () => document.getElementById('speech-bubble');
+    const speechText   = () => document.getElementById('speech-text');
+    const moodLabel    = () => document.getElementById('mood-label');
+
+    // --- Speech messages by mood ---
     const speechMessages = {
         idle: [
             "Ready to analyze your numbers.",
@@ -44,6 +47,47 @@
         ],
     };
 
+    // --- Speech bubble positioning (follows avatar) ---
+    let speechHideTimer = null;
+
+    function positionSpeechBubble() {
+        const bubble = speechBubble();
+        if (!bubble || !avatar) return;
+
+        const pos = avatar.getPosition();
+        // Place bubble above and to the left of the avatar
+        let bx = pos.left - 200;
+        let by = pos.top - 20;
+
+        // Keep on screen
+        if (bx < 10) bx = pos.right + 10;
+        if (by < 10) by = pos.top + 40;
+
+        bubble.style.left = Math.round(bx) + 'px';
+        bubble.style.top = Math.round(by) + 'px';
+    }
+
+    function showSpeechBubble() {
+        const bubble = speechBubble();
+        if (bubble) bubble.classList.add('visible');
+        if (speechHideTimer) clearTimeout(speechHideTimer);
+    }
+
+    function hideSpeechBubble(delay = 4000) {
+        if (speechHideTimer) clearTimeout(speechHideTimer);
+        speechHideTimer = setTimeout(() => {
+            const bubble = speechBubble();
+            if (bubble) bubble.classList.remove('visible');
+        }, delay);
+    }
+
+    // Update bubble position every frame
+    function bubbleTracker() {
+        positionSpeechBubble();
+        requestAnimationFrame(bubbleTracker);
+    }
+
+    // --- Typewriter + talk ---
     function typeText(element, text, speed = 30) {
         element.innerHTML = '';
         let i = 0;
@@ -57,114 +101,101 @@
                 i++;
                 setTimeout(type, speed);
             } else {
-                // Remove cursor after delay
-                setTimeout(() => {
-                    if (cursor.parentNode) cursor.remove();
-                }, 2000);
+                setTimeout(() => { if (cursor.parentNode) cursor.remove(); }, 2000);
             }
         }
         type();
     }
 
     function speak(mood) {
-        const speechEl = document.getElementById('avatar-speech');
-        const moodEl = document.getElementById('avatar-mood');
-        if (!speechEl) return;
+        const el = speechText();
+        const ml = moodLabel();
+        if (!el) return;
 
         const messages = speechMessages[mood] || speechMessages.idle;
         const msg = messages[Math.floor(Math.random() * messages.length)];
-        typeText(speechEl, msg);
+        typeText(el, msg);
 
-        // Trigger avatar talking animation while text types
         if (avatar && avatar.talk) {
             avatar.talk(Math.floor(msg.length * 1.5));
         }
 
-        if (moodEl) {
-            moodEl.textContent = `Mood: ${mood}`;
-        }
+        if (ml) ml.textContent = `Mood: ${mood}`;
+
+        showSpeechBubble();
+        hideSpeechBubble(msg.length * 60 + 3000);
     }
 
-    // WebSocket connection
+    // --- WebSocket ---
     function connectWebSocket() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsUrl = `${protocol}//${window.location.host}/ws`;
 
-        try {
-            ws = new WebSocket(wsUrl);
-        } catch (e) {
-            console.warn('WebSocket connection failed:', e);
-            scheduleReconnect();
-            return;
+        try { ws = new WebSocket(wsUrl); } catch (e) {
+            scheduleReconnect(); return;
         }
 
         ws.onopen = () => {
-            console.log('Connected to Mr. Dollars backend');
             reconnectAttempts = 0;
             updateConnectionStatus(true);
         };
 
         ws.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                handleMessage(data);
-            } catch (e) {
-                console.error('Failed to parse message:', e);
-            }
+            try { handleMessage(JSON.parse(event.data)); } catch (e) {}
         };
 
         ws.onclose = () => {
-            console.log('WebSocket disconnected');
             updateConnectionStatus(false);
             scheduleReconnect();
         };
 
-        ws.onerror = (err) => {
-            console.error('WebSocket error:', err);
-        };
+        ws.onerror = () => {};
     }
 
     function scheduleReconnect() {
         if (reconnectAttempts >= MAX_RECONNECT) return;
         reconnectAttempts++;
-        const delay = Math.min(2000 * Math.pow(2, reconnectAttempts - 1), 30000);
-        reconnectTimer = setTimeout(connectWebSocket, delay);
+        setTimeout(connectWebSocket, Math.min(2000 * Math.pow(2, reconnectAttempts - 1), 30000));
     }
 
     function updateConnectionStatus(connected) {
         const dot = document.getElementById('connection-dot');
-        if (dot) {
-            dot.className = connected ? 'status-dot' : 'status-dot disconnected';
-        }
+        if (dot) dot.className = connected ? 'status-dot' : 'status-dot disconnected';
         const label = document.getElementById('connection-label');
-        if (label) {
-            label.textContent = connected ? 'Live' : 'Disconnected';
-        }
+        if (label) label.textContent = connected ? 'Live' : 'Offline';
     }
 
     function handleMessage(data) {
         if (data.type === 'report') {
-            // Full report update
-            dashboard.updateFromReport(data.payload);
-            if (avatar) {
-                avatar.setMoodFromReport(data.payload);
-                avatar.sparkle();
-                speak(avatar.mood);
-            }
+            onReport(data.payload);
         } else if (data.type === 'loom_status') {
             dashboard.renderLoomStatus(data.payload);
-        } else if (data.type === 'error') {
-            console.error('Server error:', data.message);
         }
     }
 
-    // Manual report generation
+    // --- Report handling ---
+    function onReport(report) {
+        dashboard.updateFromReport(report);
+        if (avatar) {
+            avatar.setMoodFromReport(report);
+            avatar.sparkle();
+
+            // Move to scoreboard to present the numbers
+            avatar.moveToStation('scoreboard');
+            speak(avatar.mood);
+
+            // After a delay, move to decisions
+            setTimeout(() => {
+                if (avatar) avatar.moveToStation('decisions');
+            }, 5000);
+        }
+    }
+
     async function generateReport() {
         const btn = document.getElementById('btn-generate');
-        if (btn) {
-            btn.textContent = 'Generating...';
-            btn.disabled = true;
-        }
+        if (btn) { btn.textContent = 'Generating...'; btn.disabled = true; }
+
+        if (avatar) avatar.moveToStation('center');
 
         try {
             const response = await fetch('/api/report/generate', {
@@ -172,60 +203,42 @@
                 headers: { 'Content-Type': 'application/json' },
             });
             const data = await response.json();
-
-            if (data.report) {
-                dashboard.updateFromReport(data.report);
-                if (avatar) {
-                    avatar.setMoodFromReport(data.report);
-                    avatar.sparkle();
-                    speak(avatar.mood);
-                }
-            }
+            if (data.report) onReport(data.report);
         } catch (e) {
-            console.error('Report generation failed:', e);
             speak('alert');
         } finally {
-            if (btn) {
-                btn.textContent = 'Generate Report';
-                btn.disabled = false;
-            }
+            if (btn) { btn.textContent = 'Generate Report'; btn.disabled = false; }
         }
     }
 
-    // Demo mode (load sample data)
     async function loadDemo() {
+        if (avatar) {
+            avatar.moveToStation('center');
+            avatar.wave();
+        }
+
         try {
             const response = await fetch('/api/report/demo');
             const data = await response.json();
-
-            if (data.report) {
-                dashboard.updateFromReport(data.report);
-                if (avatar) {
-                    avatar.setMoodFromReport(data.report);
-                    avatar.sparkle();
-                    speak(avatar.mood);
-                }
-            }
-        } catch (e) {
-            console.error('Demo load failed:', e);
-        }
+            if (data.report) onReport(data.report);
+        } catch (e) {}
     }
 
-    // Check Time Loom connection
     async function checkLoomConnection() {
         try {
             const response = await fetch('/api/timeloom/status');
             const data = await response.json();
             dashboard.renderLoomStatus(data);
         } catch (e) {
-            dashboard.renderLoomStatus({ status: 'disconnected', error: String(e) });
+            dashboard.renderLoomStatus({ status: 'disconnected' });
         }
     }
 
-    // Capital project evaluation
     async function evaluateProject() {
         const input = document.getElementById('cashflows-input');
         if (!input || !input.value.trim()) return;
+
+        if (avatar) avatar.moveToStation('tools');
 
         try {
             const cashflows = input.value.split(',').map(v => parseFloat(v.trim()));
@@ -240,50 +253,41 @@
             if (resultEl && data) {
                 const npvColor = data.npv_base > 0 ? 'good' : 'bad';
                 resultEl.innerHTML = `
-                    <div class="metric-card" style="margin-top:12px;">
-                        <div class="metric-label">NPV (base rate)</div>
-                        <div class="metric-value ${npvColor}">$${data.npv_base.toFixed(2)}</div>
-                        <div class="metric-delta">
-                            NPV range: $${data.npv_lo.toFixed(2)} to $${data.npv_hi.toFixed(2)}
-                        </div>
-                        <div class="metric-delta" style="margin-top:4px;">
+                    <div class="glass-card metric-card" style="margin-top:12px">
+                        <div class="label">NPV (base rate)</div>
+                        <div class="value ${npvColor}">$${data.npv_base.toFixed(2)}</div>
+                        <div class="delta">
+                            Range: $${data.npv_lo.toFixed(2)} to $${data.npv_hi.toFixed(2)} |
                             IRR: ${data.irr !== null ? (data.irr * 100).toFixed(1) + '%' : 'N/A'} |
-                            ${data.robust_positive ? 'Robust positive' : data.fragile_positive ? 'Fragile positive' : 'Negative'}
+                            ${data.robust_positive ? 'Robust' : data.fragile_positive ? 'Fragile' : 'Negative'}
                         </div>
                     </div>`;
             }
-        } catch (e) {
-            console.error('Capital evaluation failed:', e);
-        }
+        } catch (e) {}
     }
 
-    // Initialize on DOM ready
+    // --- Init ---
     document.addEventListener('DOMContentLoaded', () => {
-        // Initialize dashboard
         dashboard = new Dashboard();
 
-        // Initialize cartoon avatar
         if (typeof DollarAvatar !== 'undefined') {
             avatar = new DollarAvatar('dollar-canvas');
         }
 
-        // Wire up buttons
-        const btnGenerate = document.getElementById('btn-generate');
-        if (btnGenerate) btnGenerate.addEventListener('click', generateReport);
+        document.getElementById('btn-generate')?.addEventListener('click', generateReport);
+        document.getElementById('btn-demo')?.addEventListener('click', loadDemo);
+        document.getElementById('btn-evaluate-capital')?.addEventListener('click', evaluateProject);
 
-        const btnDemo = document.getElementById('btn-demo');
-        if (btnDemo) btnDemo.addEventListener('click', loadDemo);
-
-        const btnCapital = document.getElementById('btn-evaluate-capital');
-        if (btnCapital) btnCapital.addEventListener('click', evaluateProject);
-
-        // Connect WebSocket
         connectWebSocket();
-
-        // Check Time Loom status
         checkLoomConnection();
 
-        // Initial speech
-        speak('idle');
+        // Start speech bubble tracker
+        bubbleTracker();
+
+        // Initial greeting
+        setTimeout(() => {
+            if (avatar) avatar.wave();
+            speak('idle');
+        }, 500);
     });
 })();
