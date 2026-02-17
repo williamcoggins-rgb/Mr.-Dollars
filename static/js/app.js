@@ -1,12 +1,12 @@
 /**
- * Mr. Dollars — Main Application v2
+ * Mr. Dollars — Main Application v3
  *
  * Orchestrates:
- *  - Ambient particle system (floating gold dust + dollar signs)
- *  - Avatar presenter stage interactions
- *  - Speech card with typewriter effect
+ *  - PixiJS GPU-accelerated ambient particle system (200+ particles)
+ *  - Avatar roaming + speech bubble tracking
+ *  - Typewriter speech with GSAP-driven avatar reactions
  *  - WebSocket for live updates
- *  - Coordinated avatar reactions to data events
+ *  - Coordinated avatar choreography on data events
  */
 
 (function () {
@@ -18,103 +18,102 @@
     let reconnectAttempts = 0;
     const MAX_RECONNECT = 10;
 
-    // === Ambient Particle System ===
+    // === PixiJS Ambient Particle System (GPU-accelerated) ===
 
     class AmbientParticles {
-        constructor(canvasId) {
-            this.canvas = document.getElementById(canvasId);
-            if (!this.canvas) return;
-            this.ctx = this.canvas.getContext('2d');
+        constructor(canvasEl) {
+            if (!canvasEl) return;
+
+            // Create PixiJS app using the existing canvas element
+            this.app = new PIXI.Application({
+                view: canvasEl,
+                resizeTo: window,
+                backgroundAlpha: 0,
+                antialias: true,
+                resolution: Math.min(window.devicePixelRatio || 1, 2),
+                autoDensity: true,
+            });
+
             this.particles = [];
-            this.resize();
-            window.addEventListener('resize', () => this.resize());
-            this._spawn();
-            this._animate();
+            this._createParticles();
+            this.app.ticker.add(() => this._update());
         }
 
-        resize() {
-            this.w = window.innerWidth;
-            this.h = window.innerHeight;
-            const dpr = Math.min(window.devicePixelRatio || 1, 2);
-            this.canvas.width = this.w * dpr;
-            this.canvas.height = this.h * dpr;
-            this.canvas.style.width = this.w + 'px';
-            this.canvas.style.height = this.h + 'px';
-            this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        }
+        _createParticles() {
+            const w = window.innerWidth;
+            const h = window.innerHeight;
 
-        _spawn() {
-            // Floating dollar signs
-            for (let i = 0; i < 6; i++) {
+            // Floating dollar signs (20, up from 6)
+            for (let i = 0; i < 20; i++) {
+                const text = new PIXI.Text('$', {
+                    fontFamily: '"Playfair Display", serif',
+                    fontSize: 12 + Math.random() * 24,
+                    fill: 0xFFD700,
+                    fontWeight: 'bold',
+                });
+                text.anchor.set(0.5);
+                text.alpha = 0.03 + Math.random() * 0.06;
+                text.x = Math.random() * w;
+                text.y = Math.random() * h;
+
+                this.app.stage.addChild(text);
                 this.particles.push({
+                    sprite: text,
                     type: 'dollar',
-                    x: Math.random() * this.w,
-                    y: Math.random() * this.h,
-                    size: 10 + Math.random() * 16,
-                    speed: 0.15 + Math.random() * 0.25,
-                    opacity: 0.04 + Math.random() * 0.06,
+                    speed: 0.12 + Math.random() * 0.3,
                     phase: Math.random() * Math.PI * 2,
-                    drift: Math.random() * 0.3,
+                    drift: 0.2 + Math.random() * 0.4,
+                    rotSpeed: (Math.random() - 0.5) * 0.003,
                 });
             }
 
-            // Gold dust motes
-            for (let i = 0; i < 30; i++) {
+            // Gold dust motes (180, up from 30) — GPU-rendered circles
+            for (let i = 0; i < 180; i++) {
+                const size = 0.5 + Math.random() * 3;
+                const gfx = new PIXI.Graphics();
+                gfx.beginFill(0xFFD700, 1);
+                gfx.drawCircle(0, 0, size);
+                gfx.endFill();
+
+                gfx.x = Math.random() * w;
+                gfx.y = Math.random() * h;
+                gfx.alpha = 0.04 + Math.random() * 0.12;
+
+                this.app.stage.addChild(gfx);
                 this.particles.push({
+                    sprite: gfx,
                     type: 'dust',
-                    x: Math.random() * this.w,
-                    y: Math.random() * this.h,
-                    size: 1 + Math.random() * 2.5,
-                    speed: 0.05 + Math.random() * 0.15,
-                    opacity: 0.08 + Math.random() * 0.15,
+                    baseSize: size,
+                    speed: 0.04 + Math.random() * 0.18,
                     phase: Math.random() * Math.PI * 2,
-                    drift: 0.2 + Math.random() * 0.5,
+                    drift: 0.15 + Math.random() * 0.6,
+                    pulseSpeed: 1.5 + Math.random() * 2,
                 });
             }
         }
 
-        _animate() {
-            const tick = () => {
-                requestAnimationFrame(tick);
-                this._draw();
-            };
-            tick();
-        }
-
-        _draw() {
-            const ctx = this.ctx;
-            ctx.clearRect(0, 0, this.w, this.h);
+        _update() {
             const t = performance.now() / 1000;
+            const w = window.innerWidth;
+            const h = window.innerHeight;
 
             for (const p of this.particles) {
-                p.y -= p.speed;
-                p.x += Math.sin(t * p.drift + p.phase) * 0.3;
+                const s = p.sprite;
+                s.y -= p.speed;
+                s.x += Math.sin(t * p.drift + p.phase) * 0.4;
 
-                if (p.y < -30) { p.y = this.h + 30; p.x = Math.random() * this.w; }
-                if (p.x < -30) p.x = this.w + 30;
-                if (p.x > this.w + 30) p.x = -30;
-
-                ctx.save();
-                ctx.globalAlpha = p.opacity;
-                ctx.translate(p.x, p.y);
+                // Wrap around
+                if (s.y < -40) { s.y = h + 40; s.x = Math.random() * w; }
+                if (s.x < -40) s.x = w + 40;
+                if (s.x > w + 40) s.x = -40;
 
                 if (p.type === 'dollar') {
-                    ctx.rotate(Math.sin(t * 0.3 + p.phase) * 0.15);
-                    ctx.font = `${p.size}px 'Playfair Display', serif`;
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillStyle = '#FFD700';
-                    ctx.fillText('$', 0, 0);
+                    s.rotation = Math.sin(t * 0.3 + p.phase) * 0.15;
                 } else {
-                    // Gold dust mote
-                    const pulse = 1 + Math.sin(t * 2 + p.phase) * 0.3;
-                    ctx.beginPath();
-                    ctx.arc(0, 0, p.size * pulse, 0, Math.PI * 2);
-                    ctx.fillStyle = '#FFD700';
-                    ctx.fill();
+                    // Gentle pulse
+                    const pulse = 1 + Math.sin(t * p.pulseSpeed + p.phase) * 0.3;
+                    s.scale.set(pulse);
                 }
-
-                ctx.restore();
             }
         }
     }
@@ -126,15 +125,11 @@
         if (!bubble || !avatar) return;
 
         const pos = avatar.getPosition();
-        // Place bubble above-left of the avatar
         let bx = pos.left - 260;
         let by = pos.top - 10;
 
-        // If off-screen left, flip to the right side
         if (bx < 10) bx = pos.right + 10;
-        // If off-screen top, push down
         if (by < 50) by = pos.top + 60;
-        // If off-screen bottom
         if (by > window.innerHeight - 180) by = pos.top - 160;
 
         bubble.style.left = Math.round(bx) + 'px';
@@ -210,7 +205,7 @@
                 element.textContent = text.substring(0, i + 1);
                 element.appendChild(cursor);
                 i++;
-                setTimeout(type, speed + Math.random() * 15); // slight timing variation
+                setTimeout(type, speed + Math.random() * 15);
             } else {
                 setTimeout(() => { if (cursor.parentNode) cursor.remove(); }, 2500);
             }
@@ -230,11 +225,10 @@
             avatar.talk(Math.floor(msg.length * 1.8));
         }
 
-        // Update mood indicator
         const dot = document.getElementById('mood-dot');
-        if (dot) { dot.className = 'mood-dot ' + mood; }
+        if (dot) dot.className = 'mood-dot ' + mood;
         const label = document.getElementById('mood-label');
-        if (label) { label.textContent = `Mood: ${mood}`; }
+        if (label) label.textContent = `Mood: ${mood}`;
 
         showSpeechBubble();
         hideSpeechBubble(msg.length * 65 + 4000);
@@ -297,21 +291,15 @@
             avatar.setMoodFromReport(report);
             avatar.bounce();
 
-            // Walk to scoreboard to present
             avatar.moveToStation('scoreboard');
 
-            // Speak after a beat
             setTimeout(() => speak(avatar.mood), 400);
-
-            // Sparkle after speech starts
             setTimeout(() => { if (avatar) avatar.sparkle(); }, 1200);
 
-            // Walk to decisions after presenting scoreboard
             setTimeout(() => {
                 if (avatar) avatar.moveToStation('decisions');
             }, 5000);
 
-            // Return home after tour
             setTimeout(() => {
                 if (avatar) avatar.moveToStation('home');
             }, 10000);
@@ -402,13 +390,16 @@
     document.addEventListener('DOMContentLoaded', () => {
         dashboard = new Dashboard();
 
-        // Avatar
+        // Avatar (GSAP-powered)
         if (typeof DollarAvatar !== 'undefined') {
             avatar = new DollarAvatar('dollar-canvas');
         }
 
-        // Ambient particles
-        new AmbientParticles('ambient-canvas');
+        // PixiJS ambient particles (GPU-accelerated)
+        const ambientCanvas = document.getElementById('ambient-canvas');
+        if (ambientCanvas && typeof PIXI !== 'undefined') {
+            new AmbientParticles(ambientCanvas);
+        }
 
         // Buttons
         document.getElementById('btn-generate')?.addEventListener('click', generateReport);
@@ -419,7 +410,7 @@
         connectWebSocket();
         checkLoomConnection();
 
-        // Start speech bubble tracker (follows avatar every frame)
+        // Start speech bubble tracker
         bubbleTracker();
 
         // Entrance choreography
