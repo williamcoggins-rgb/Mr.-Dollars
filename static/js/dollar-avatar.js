@@ -1,11 +1,22 @@
 /**
- * Mr. Dollars — Roaming Cartoon Dollar Bill Character
+ * Mr. Dollars — Animated Cartoon Dollar Bill Character v2
  *
- * Full cartoon character rendered on HTML5 Canvas 2D.
- * Roams freely around the screen, visiting dashboard sections,
- * pointing at metrics, and reacting to data.
+ * Professional canvas animation applying the 12 Principles of Animation:
+ *  1. Squash & Stretch — on bounces, landing, talking
+ *  2. Anticipation     — wind-up before waves, jumps
+ *  3. Staging          — clear silhouette, readable poses
+ *  4. Straight-ahead / Pose-to-pose — smooth interpolation
+ *  5. Follow-through & Overlap — hat/arm lag, hair-like secondary motion
+ *  6. Ease in / Ease out — smooth starts/stops on all motion
+ *  7. Arcs             — arm/leg paths follow natural arcs
+ *  8. Secondary action  — sparkles, hat bounce, arm swing during walk
+ *  9. Timing           — variable frame durations for weight/snap
+ * 10. Exaggeration     — oversized eyes, big expressions
+ * 11. Solid drawing    — consistent volume across poses
+ * 12. Appeal           — friendly proportions, big eyes, warm colors
  *
- * Miss Minutes-style: not locked in a panel — he OWNS the screen.
+ * 320×400 canvas, scale 0.62 — significantly bigger than v1.
+ * Positioned inline in the presenter stage (not fixed overlay).
  */
 
 class DollarAvatar {
@@ -14,56 +25,48 @@ class DollarAvatar {
         if (!this.canvas) return;
         this.ctx = this.canvas.getContext('2d');
 
-        // Canvas size (character viewport)
-        this.charW = 200;
-        this.charH = 260;
+        this.charW = 320;
+        this.charH = 400;
 
-        // State
+        // Core state
         this.mood = 'confident';
         this.t = 0;
         this.mouseX = 0.5;
         this.mouseY = 0.5;
 
-        // Position on screen (top-left of canvas)
-        this.posX = window.innerWidth - 240;
-        this.posY = 80;
-        this.targetX = this.posX;
-        this.targetY = this.posY;
-        this.facingLeft = false;
-
-        // Roaming state
-        this.isRoaming = false;
-        this.roamTimer = 0;
-        this.roamInterval = 360;  // frames between roams (~6s at 60fps)
-        this.currentStation = 'home';
-        this.walkSpeed = 0;
-
-        // Animation state
+        // Blink
         this.blinkTimer = 0;
         this.blinkDuration = 0;
         this.isBlinking = false;
         this.nextBlink = 120 + Math.random() * 180;
 
+        // Talk
         this.talkPhase = 0;
         this.isTalking = false;
         this.talkTimer = 0;
+        this.mouthOpenness = 0;
 
+        // Wave (with anticipation)
         this.wavePhase = 0;
         this.isWaving = false;
         this.waveTimer = 0;
+        this.waveAnticipation = 0; // wind-up counter
 
-        this.sparkles = [];
-
-        // Squash/stretch
+        // Squash & stretch
         this.squashX = 1;
         this.squashY = 1;
         this.targetSquashX = 1;
         this.targetSquashY = 1;
 
-        this.mouthOpenness = 0;
+        // Follow-through: hat lag
+        this.hatLagAngle = 0;
+        this.hatLagVelocity = 0;
 
-        // Stations — positions Mr. Dollars roams to
-        this._updateStations();
+        // Idle breathing
+        this.breathPhase = Math.random() * Math.PI * 2;
+
+        // Sparkles
+        this.sparkles = [];
 
         this._setupCanvas();
         this._bindEvents();
@@ -79,26 +82,7 @@ class DollarAvatar {
         this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         this.w = this.charW;
         this.h = this.charH;
-        this.scale = 0.42;
-        this._applyPosition();
-    }
-
-    _applyPosition() {
-        this.canvas.style.left = Math.round(this.posX) + 'px';
-        this.canvas.style.top = Math.round(this.posY) + 'px';
-    }
-
-    _updateStations() {
-        const vw = window.innerWidth;
-        const vh = window.innerHeight;
-        this.stations = {
-            home:       { x: vw - 240, y: 80 },
-            scoreboard: { x: vw * 0.55, y: 100 },
-            decisions:  { x: vw * 0.12, y: vh * 0.38 },
-            actions:    { x: vw * 0.58, y: vh * 0.38 },
-            tools:      { x: vw * 0.3,  y: vh * 0.68 },
-            center:     { x: vw * 0.45, y: vh * 0.35 },
-        };
+        this.scale = 0.62;
     }
 
     _bindEvents() {
@@ -111,13 +95,9 @@ class DollarAvatar {
             this.wave();
             this.sparkle();
         });
-
-        window.addEventListener('resize', () => {
-            this._updateStations();
-        });
     }
 
-    // --- Main draw loop ---
+    // === Main Loop ===
 
     _animate() {
         const tick = () => {
@@ -141,83 +121,78 @@ class DollarAvatar {
             if (this.blinkDuration > 12) {
                 this.isBlinking = false;
                 this.blinkTimer = 0;
-                this.nextBlink = 120 + Math.random() * 240;
+                this.nextBlink = 100 + Math.random() * 200;
             }
         }
 
-        // Talk
+        // Talk — variable mouth with consonant/vowel simulation
         if (this.isTalking) {
-            this.talkPhase += 0.3;
+            this.talkPhase += 0.28;
             this.talkTimer--;
-            this.mouthOpenness = 0.3 + Math.abs(Math.sin(this.talkPhase)) * 0.7;
+            // Mix two sine waves for more natural phoneme-like movement
+            this.mouthOpenness = 0.2
+                + Math.abs(Math.sin(this.talkPhase)) * 0.45
+                + Math.abs(Math.sin(this.talkPhase * 1.7 + 0.5)) * 0.3;
             if (this.talkTimer <= 0) {
                 this.isTalking = false;
                 this.mouthOpenness = 0;
             }
+        } else {
+            // Gentle mouth close ease
+            this.mouthOpenness += (0 - this.mouthOpenness) * 0.15;
         }
 
-        // Wave
+        // Wave with anticipation
         if (this.isWaving) {
-            this.wavePhase += 0.12;
+            if (this.waveAnticipation < 6) {
+                // Wind-up phase — arm goes slightly down first
+                this.waveAnticipation++;
+                this.wavePhase = -0.3 * (this.waveAnticipation / 6);
+            } else {
+                this.wavePhase += 0.14;
+            }
             this.waveTimer--;
-            if (this.waveTimer <= 0) { this.isWaving = false; this.wavePhase = 0; }
+            if (this.waveTimer <= 0) {
+                this.isWaving = false;
+                this.wavePhase = 0;
+                this.waveAnticipation = 0;
+            }
         }
 
-        // Squash/stretch
-        this.squashX += (this.targetSquashX - this.squashX) * 0.15;
-        this.squashY += (this.targetSquashY - this.squashY) * 0.15;
-        this.targetSquashX += (1 - this.targetSquashX) * 0.08;
-        this.targetSquashY += (1 - this.targetSquashY) * 0.08;
+        // Squash/stretch — spring physics
+        this.squashX += (this.targetSquashX - this.squashX) * 0.12;
+        this.squashY += (this.targetSquashY - this.squashY) * 0.12;
+        this.targetSquashX += (1 - this.targetSquashX) * 0.06;
+        this.targetSquashY += (1 - this.targetSquashY) * 0.06;
+
+        // Follow-through: hat lag (spring)
+        const bodyTilt = Math.sin(this.t * 1.7) * 0.03;
+        const hatTarget = -bodyTilt * 1.8;
+        const hatSpring = 0.06;
+        const hatDamping = 0.82;
+        this.hatLagVelocity += (hatTarget - this.hatLagAngle) * hatSpring;
+        this.hatLagVelocity *= hatDamping;
+        this.hatLagAngle += this.hatLagVelocity;
+
+        // Breathing
+        this.breathPhase += 0.025;
 
         // Sparkle decay
         this.sparkles = this.sparkles.filter(s => {
-            s.life -= 0.02;
+            s.life -= 0.018;
             s.y -= s.vy;
             s.x += s.vx;
-            s.vy *= 0.98;
+            s.vy *= 0.97;
+            s.vx *= 0.99;
+            s.rotation += s.rotSpeed;
             return s.life > 0;
         });
-
-        // --- Roaming movement ---
-        this.roamTimer++;
-        if (this.roamTimer > this.roamInterval && !this.isTalking) {
-            this._pickNextStation();
-            this.roamTimer = 0;
-            this.roamInterval = 300 + Math.random() * 300;
-        }
-
-        // Smooth movement toward target
-        const dx = this.targetX - this.posX;
-        const dy = this.targetY - this.posY;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-
-        if (dist > 2) {
-            const ease = 0.035;
-            this.posX += dx * ease;
-            this.posY += dy * ease;
-            this.walkSpeed = Math.min(dist * 0.03, 1);
-            this.facingLeft = dx < 0;
-            this._applyPosition();
-        } else {
-            this.walkSpeed = 0;
-        }
-    }
-
-    _pickNextStation() {
-        const keys = Object.keys(this.stations).filter(k => k !== this.currentStation);
-        const next = keys[Math.floor(Math.random() * keys.length)];
-        this.currentStation = next;
-        const st = this.stations[next];
-        if (st) {
-            this.targetX = st.x + (Math.random() - 0.5) * 40;
-            this.targetY = st.y + (Math.random() - 0.5) * 20;
-        }
     }
 
     _draw() {
         const ctx = this.ctx;
         const cx = this.w / 2;
-        const cy = this.h / 2 + 20;
+        const cy = this.h / 2 + 30;
         const s = this.scale;
 
         ctx.clearRect(0, 0, this.w, this.h);
@@ -225,20 +200,19 @@ class DollarAvatar {
         ctx.save();
         ctx.translate(cx, cy);
 
-        // Flip if facing left
-        if (this.facingLeft) ctx.scale(-1, 1);
-
-        // Idle bob
-        const bobY = Math.sin(this.t * 2.0) * 8 * s;
-        const bobX = Math.sin(this.t * 1.3) * 3 * s;
+        // Idle bob (arc motion — principle 7)
+        const bobY = Math.sin(this.t * 1.8) * 6 * s;
+        const bobX = Math.sin(this.t * 1.1) * 2 * s;
         const tilt = Math.sin(this.t * 1.7) * 0.03;
+
+        // Breathing scale
+        const breathScale = 1 + Math.sin(this.breathPhase) * 0.008;
+
         ctx.translate(bobX, bobY);
         ctx.rotate(tilt);
+        ctx.scale(this.squashX * breathScale, this.squashY * (2 - breathScale));
 
-        // Squash/stretch
-        ctx.scale(this.squashX, this.squashY);
-
-        // Draw character parts (back to front)
+        // Draw order: shadow, legs, left arm, body, face, right arm, hat
         this._drawShadow(ctx, s);
         this._drawLegs(ctx, s);
         this._drawLeftArm(ctx, s);
@@ -249,169 +223,173 @@ class DollarAvatar {
 
         ctx.restore();
 
-        // Sparkles (drawn in world space)
+        // Sparkles in screen space
         this._drawSparkles(ctx);
     }
 
-    // --- Body parts ---
+    // === Body Parts ===
 
     _drawShadow(ctx, s) {
         ctx.save();
-        ctx.translate(0, 105 * s);
-        ctx.scale(1, 0.3);
+        ctx.translate(0, 115 * s);
+        ctx.scale(1, 0.25);
         ctx.beginPath();
-        ctx.ellipse(0, 0, 70 * s, 40 * s, 0, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+        ctx.ellipse(0, 0, 80 * s, 50 * s, 0, 0, Math.PI * 2);
+        const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, 80 * s);
+        grad.addColorStop(0, 'rgba(0, 0, 0, 0.18)');
+        grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = grad;
         ctx.fill();
         ctx.restore();
     }
 
     _drawLegs(ctx, s) {
-        const walkMult = this.walkSpeed > 0.1 ? 8 : 3;
-        const walkPhase = this.t * walkMult;
-        const baseSwing = this.mood === 'celebrating' ? 15 : 5;
-        const legSwing = baseSwing + this.walkSpeed * 25;
-        const leftLegAngle = Math.sin(walkPhase) * legSwing * (Math.PI / 180);
-        const rightLegAngle = Math.sin(walkPhase + Math.PI) * legSwing * (Math.PI / 180);
+        const walkPhase = this.t * 2.5;
+        const legSwing = this.mood === 'celebrating' ? 12 : 4;
+        const leftAngle = Math.sin(walkPhase) * legSwing * (Math.PI / 180);
+        const rightAngle = Math.sin(walkPhase + Math.PI) * legSwing * (Math.PI / 180);
 
-        // Left leg
-        ctx.save();
-        ctx.translate(-25 * s, 70 * s);
-        ctx.rotate(leftLegAngle);
+        [-1, 1].forEach((side, i) => {
+            const angle = i === 0 ? leftAngle : rightAngle;
+            ctx.save();
+            ctx.translate(side * 28 * s, 78 * s);
+            ctx.rotate(angle);
 
-        // Leg
-        ctx.beginPath();
-        ctx.moveTo(0, 0);
-        ctx.lineTo(-4 * s, 35 * s);
-        ctx.strokeStyle = '#1B5E20';
-        ctx.lineWidth = 8 * s;
-        ctx.lineCap = 'round';
-        ctx.stroke();
+            // Leg
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(side * 3 * s, 40 * s);
+            ctx.strokeStyle = '#1B5E20';
+            ctx.lineWidth = 10 * s;
+            ctx.lineCap = 'round';
+            ctx.stroke();
 
-        // Shoe
-        ctx.beginPath();
-        ctx.ellipse(-4 * s, 38 * s, 14 * s, 8 * s, 0.2, 0, Math.PI * 2);
-        ctx.fillStyle = '#4A2800';
-        ctx.fill();
-        ctx.strokeStyle = '#2E1800';
-        ctx.lineWidth = 1.5 * s;
-        ctx.stroke();
+            // Shoe with highlight
+            ctx.beginPath();
+            ctx.ellipse(side * 3 * s, 44 * s, 17 * s, 10 * s, side * 0.2, 0, Math.PI * 2);
+            const shoeGrad = ctx.createLinearGradient(
+                side * 3 * s - 17 * s, 34 * s,
+                side * 3 * s + 17 * s, 54 * s
+            );
+            shoeGrad.addColorStop(0, '#5C3300');
+            shoeGrad.addColorStop(1, '#3A1F00');
+            ctx.fillStyle = shoeGrad;
+            ctx.fill();
+            ctx.strokeStyle = '#2E1800';
+            ctx.lineWidth = 1.5 * s;
+            ctx.stroke();
 
-        ctx.restore();
+            // Shoe shine
+            ctx.beginPath();
+            ctx.ellipse(side * 1 * s, 40 * s, 6 * s, 3 * s, 0, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255,255,255,0.08)';
+            ctx.fill();
 
-        // Right leg
-        ctx.save();
-        ctx.translate(25 * s, 70 * s);
-        ctx.rotate(rightLegAngle);
-
-        ctx.beginPath();
-        ctx.moveTo(0, 0);
-        ctx.lineTo(4 * s, 35 * s);
-        ctx.strokeStyle = '#1B5E20';
-        ctx.lineWidth = 8 * s;
-        ctx.lineCap = 'round';
-        ctx.stroke();
-
-        ctx.beginPath();
-        ctx.ellipse(4 * s, 38 * s, 14 * s, 8 * s, -0.2, 0, Math.PI * 2);
-        ctx.fillStyle = '#4A2800';
-        ctx.fill();
-        ctx.strokeStyle = '#2E1800';
-        ctx.lineWidth = 1.5 * s;
-        ctx.stroke();
-
-        ctx.restore();
+            ctx.restore();
+        });
     }
 
     _drawLeftArm(ctx, s) {
         ctx.save();
-        ctx.translate(-65 * s, -10 * s);
+        ctx.translate(-72 * s, -10 * s);
 
-        const swing = Math.sin(this.t * 2.5 + 1) * 15 * (Math.PI / 180);
+        // Secondary motion: arm swing follows body bob
+        const swing = Math.sin(this.t * 2.5 + 1) * 12 * (Math.PI / 180);
         ctx.rotate(swing - 0.3);
 
         // Arm
         ctx.beginPath();
         ctx.moveTo(0, 0);
-        ctx.quadraticCurveTo(-15 * s, 30 * s, -25 * s, 55 * s);
+        ctx.quadraticCurveTo(-18 * s, 35 * s, -28 * s, 62 * s);
         ctx.strokeStyle = '#1B5E20';
-        ctx.lineWidth = 7 * s;
+        ctx.lineWidth = 9 * s;
         ctx.lineCap = 'round';
         ctx.stroke();
 
-        // White glove
-        this._drawGlove(ctx, -25 * s, 55 * s, s, false);
-
+        this._drawGlove(ctx, -28 * s, 62 * s, s, false);
         ctx.restore();
     }
 
     _drawRightArm(ctx, s) {
         ctx.save();
-        ctx.translate(65 * s, -10 * s);
+        ctx.translate(72 * s, -10 * s);
 
-        if (this.isWaving) {
-            // Waving gesture
-            const wave = Math.sin(this.wavePhase * 4) * 30 * (Math.PI / 180);
-            ctx.rotate(-1.2 + wave);
+        if (this.isWaving && this.waveAnticipation >= 6) {
+            const wave = Math.sin((this.wavePhase - (-0.3)) * 3.5) * 25 * (Math.PI / 180);
+            ctx.rotate(-1.3 + wave);
 
             ctx.beginPath();
             ctx.moveTo(0, 0);
-            ctx.quadraticCurveTo(15 * s, -25 * s, 20 * s, -55 * s);
+            ctx.quadraticCurveTo(18 * s, -30 * s, 24 * s, -62 * s);
             ctx.strokeStyle = '#1B5E20';
-            ctx.lineWidth = 7 * s;
+            ctx.lineWidth = 9 * s;
             ctx.lineCap = 'round';
             ctx.stroke();
 
-            this._drawGlove(ctx, 20 * s, -55 * s, s, true);
+            this._drawGlove(ctx, 24 * s, -62 * s, s, true);
+        } else if (this.isWaving) {
+            // Anticipation: arm pulls back slightly
+            const pull = this.wavePhase;
+            ctx.rotate(pull + 0.3);
+
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.quadraticCurveTo(18 * s, 35 * s, 28 * s, 62 * s);
+            ctx.strokeStyle = '#1B5E20';
+            ctx.lineWidth = 9 * s;
+            ctx.lineCap = 'round';
+            ctx.stroke();
+
+            this._drawGlove(ctx, 28 * s, 62 * s, s, true);
         } else {
-            const swing = Math.sin(this.t * 2.5) * 15 * (Math.PI / 180);
+            const swing = Math.sin(this.t * 2.5) * 12 * (Math.PI / 180);
             ctx.rotate(-swing + 0.3);
 
             ctx.beginPath();
             ctx.moveTo(0, 0);
-            ctx.quadraticCurveTo(15 * s, 30 * s, 25 * s, 55 * s);
+            ctx.quadraticCurveTo(18 * s, 35 * s, 28 * s, 62 * s);
             ctx.strokeStyle = '#1B5E20';
-            ctx.lineWidth = 7 * s;
+            ctx.lineWidth = 9 * s;
             ctx.lineCap = 'round';
             ctx.stroke();
 
-            this._drawGlove(ctx, 25 * s, 55 * s, s, true);
+            this._drawGlove(ctx, 28 * s, 62 * s, s, true);
         }
 
         ctx.restore();
     }
 
     _drawGlove(ctx, x, y, s, isRight) {
-        // White cartoon glove
         ctx.save();
         ctx.translate(x, y);
 
-        // Main glove
+        // Glove
         ctx.beginPath();
-        ctx.arc(0, 0, 12 * s, 0, Math.PI * 2);
-        ctx.fillStyle = '#FFFFFF';
+        ctx.arc(0, 0, 15 * s, 0, Math.PI * 2);
+        const gloveGrad = ctx.createRadialGradient(-3 * s, -3 * s, 0, 0, 0, 15 * s);
+        gloveGrad.addColorStop(0, '#FFFFFF');
+        gloveGrad.addColorStop(1, '#E8E8E8');
+        ctx.fillStyle = gloveGrad;
         ctx.fill();
-        ctx.strokeStyle = '#CCCCCC';
+        ctx.strokeStyle = '#C0C0C0';
         ctx.lineWidth = 1.5 * s;
         ctx.stroke();
 
         // Thumb
-        const thumbDir = isRight ? 1 : -1;
+        const dir = isRight ? 1 : -1;
         ctx.beginPath();
-        ctx.ellipse(thumbDir * 10 * s, -4 * s, 6 * s, 5 * s, thumbDir * 0.5, 0, Math.PI * 2);
+        ctx.ellipse(dir * 12 * s, -5 * s, 7 * s, 6 * s, dir * 0.5, 0, Math.PI * 2);
         ctx.fillStyle = '#FFFFFF';
         ctx.fill();
-        ctx.strokeStyle = '#CCCCCC';
+        ctx.strokeStyle = '#C0C0C0';
         ctx.lineWidth = 1 * s;
         ctx.stroke();
 
         // Finger lines
         ctx.beginPath();
-        ctx.moveTo(-3 * s, -3 * s);
-        ctx.lineTo(-3 * s, 5 * s);
-        ctx.moveTo(2 * s, -4 * s);
-        ctx.lineTo(2 * s, 5 * s);
-        ctx.strokeStyle = '#DDDDDD';
+        ctx.moveTo(-4 * s, -4 * s); ctx.lineTo(-4 * s, 6 * s);
+        ctx.moveTo(2 * s, -5 * s);  ctx.lineTo(2 * s, 6 * s);
+        ctx.strokeStyle = '#D0D0D0';
         ctx.lineWidth = 0.8 * s;
         ctx.stroke();
 
@@ -419,64 +397,62 @@ class DollarAvatar {
     }
 
     _drawBody(ctx, s) {
-        // Dollar bill body — rounded rectangle
-        const bw = 120 * s;
-        const bh = 140 * s;
-        const r = 16 * s;
+        const bw = 135 * s;
+        const bh = 158 * s;
+        const r = 18 * s;
 
         ctx.save();
         ctx.translate(0, -15 * s);
 
-        // Main bill gradient
-        const grad = ctx.createLinearGradient(-bw/2, -bh/2, bw/2, bh/2);
-        const moodColors = this._getMoodBodyColors();
-        grad.addColorStop(0, moodColors.light);
-        grad.addColorStop(0.5, moodColors.main);
-        grad.addColorStop(1, moodColors.dark);
+        const colors = this._getMoodBodyColors();
 
-        // Bill shape
+        // Main body gradient
+        const grad = ctx.createLinearGradient(-bw/2, -bh/2, bw/2, bh/2);
+        grad.addColorStop(0, colors.light);
+        grad.addColorStop(0.5, colors.main);
+        grad.addColorStop(1, colors.dark);
+
         this._roundRect(ctx, -bw/2, -bh/2, bw, bh, r);
         ctx.fillStyle = grad;
         ctx.fill();
 
-        // Bill border (double line like real money)
-        ctx.strokeStyle = moodColors.border;
-        ctx.lineWidth = 3 * s;
+        // Outer border
+        ctx.strokeStyle = colors.border;
+        ctx.lineWidth = 3.5 * s;
         ctx.stroke();
 
         // Inner border
-        this._roundRect(ctx, -bw/2 + 8*s, -bh/2 + 8*s, bw - 16*s, bh - 16*s, r - 4*s);
-        ctx.strokeStyle = moodColors.border;
+        this._roundRect(ctx, -bw/2 + 10*s, -bh/2 + 10*s, bw - 20*s, bh - 20*s, r - 5*s);
+        ctx.strokeStyle = colors.border;
         ctx.lineWidth = 1.5 * s;
         ctx.stroke();
 
-        // Decorative corner flourishes
-        this._drawCornerFlourish(ctx, -bw/2 + 14*s, -bh/2 + 14*s, s, moodColors.accent);
-        this._drawCornerFlourish(ctx, bw/2 - 14*s, -bh/2 + 14*s, s, moodColors.accent);
-        this._drawCornerFlourish(ctx, -bw/2 + 14*s, bh/2 - 14*s, s, moodColors.accent);
-        this._drawCornerFlourish(ctx, bw/2 - 14*s, bh/2 - 14*s, s, moodColors.accent);
+        // Corner flourishes
+        const inset = 16 * s;
+        [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([dx, dy]) => {
+            this._drawCornerFlourish(ctx, dx * (bw/2 - inset), dy * (bh/2 - inset), s, colors.accent);
+        });
 
-        // Big $ watermark behind face
+        // $ watermark
         ctx.save();
-        ctx.globalAlpha = 0.08;
-        ctx.font = `bold ${100 * s}px serif`;
+        ctx.globalAlpha = 0.06;
+        ctx.font = `bold ${120 * s}px serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillStyle = moodColors.dark;
-        ctx.fillText('$', 0, 5 * s);
+        ctx.fillStyle = colors.dark;
+        ctx.fillText('$', 0, 8 * s);
         ctx.restore();
 
-        // "MR. DOLLARS" text at top of bill
-        ctx.font = `bold ${8 * s}px 'Inter', sans-serif`;
+        // "MR. DOLLARS" at top
+        ctx.font = `bold ${9 * s}px 'Inter', sans-serif`;
         ctx.textAlign = 'center';
-        ctx.fillStyle = moodColors.accent;
-        ctx.letterSpacing = `${2 * s}px`;
-        ctx.fillText('MR. DOLLARS', 0, -bh/2 + 22 * s);
+        ctx.fillStyle = colors.accent;
+        ctx.fillText('MR. DOLLARS', 0, -bh/2 + 26 * s);
 
-        // Small denomination at bottom
-        ctx.font = `${7 * s}px 'Inter', sans-serif`;
-        ctx.fillStyle = moodColors.accent;
-        ctx.fillText('FINANCIAL INTELLIGENCE', 0, bh/2 - 16 * s);
+        // Bottom text
+        ctx.font = `${7.5 * s}px 'Inter', sans-serif`;
+        ctx.fillStyle = colors.accent;
+        ctx.fillText('FINANCIAL INTELLIGENCE', 0, bh/2 - 18 * s);
 
         ctx.restore();
     }
@@ -484,50 +460,43 @@ class DollarAvatar {
     _drawCornerFlourish(ctx, x, y, s, color) {
         ctx.save();
         ctx.translate(x, y);
+        // Outer ring
         ctx.beginPath();
-        ctx.arc(0, 0, 6 * s, 0, Math.PI * 2);
+        ctx.arc(0, 0, 7 * s, 0, Math.PI * 2);
         ctx.strokeStyle = color;
         ctx.lineWidth = 1 * s;
         ctx.stroke();
+        // Inner dot
         ctx.beginPath();
-        ctx.arc(0, 0, 3 * s, 0, Math.PI * 2);
+        ctx.arc(0, 0, 3.5 * s, 0, Math.PI * 2);
         ctx.fillStyle = color;
-        ctx.globalAlpha = 0.4;
+        ctx.globalAlpha = 0.5;
         ctx.fill();
         ctx.restore();
     }
 
     _drawFace(ctx, s) {
         ctx.save();
-        ctx.translate(0, -20 * s);
+        ctx.translate(0, -22 * s);
 
-        // Eyebrow raise for moods
-        const browRaise = this.mood === 'alert' ? 6 * s :
-                          this.mood === 'celebrating' ? 4 * s : 0;
+        const browRaise = this.mood === 'alert' ? 7 * s :
+                          this.mood === 'celebrating' ? 5 * s : 0;
 
-        // Eye tracking
-        const lookX = (this.mouseX - 0.5) * 12 * s;
-        const lookY = (this.mouseY - 0.5) * 8 * s;
+        const lookX = (this.mouseX - 0.5) * 14 * s;
+        const lookY = (this.mouseY - 0.5) * 10 * s;
 
-        // --- Left Eye ---
-        this._drawEye(ctx, -22 * s, -10 * s, s, lookX, lookY, browRaise, false);
+        this._drawEye(ctx, -26 * s, -12 * s, s, lookX, lookY, browRaise, false);
+        this._drawEye(ctx,  26 * s, -12 * s, s, lookX, lookY, browRaise, true);
+        this._drawMouth(ctx, 0, 28 * s, s);
 
-        // --- Right Eye ---
-        this._drawEye(ctx, 22 * s, -10 * s, s, lookX, lookY, browRaise, true);
-
-        // --- Mouth ---
-        this._drawMouth(ctx, 0, 25 * s, s);
-
-        // --- Cheek blush (when celebrating) ---
+        // Blush (celebrating)
         if (this.mood === 'celebrating') {
-            ctx.beginPath();
-            ctx.ellipse(-35 * s, 12 * s, 10 * s, 6 * s, 0, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(255, 120, 120, 0.25)';
-            ctx.fill();
-            ctx.beginPath();
-            ctx.ellipse(35 * s, 12 * s, 10 * s, 6 * s, 0, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(255, 120, 120, 0.25)';
-            ctx.fill();
+            [-1, 1].forEach(side => {
+                ctx.beginPath();
+                ctx.ellipse(side * 40 * s, 14 * s, 12 * s, 7 * s, 0, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255, 120, 120, 0.2)';
+                ctx.fill();
+            });
         }
 
         ctx.restore();
@@ -537,32 +506,30 @@ class DollarAvatar {
         ctx.save();
         ctx.translate(ex, ey);
 
-        // Blink calculation
-        let eyeOpenness = 1.0;
+        let eyeOpen = 1.0;
         if (this.isBlinking) {
             const mid = 6;
-            eyeOpenness = this.blinkDuration < mid
+            eyeOpen = this.blinkDuration < mid
                 ? 1.0 - (this.blinkDuration / mid)
                 : (this.blinkDuration - mid) / (12 - mid);
-            eyeOpenness = Math.max(0.05, eyeOpenness);
+            eyeOpen = Math.max(0.05, eyeOpen);
         }
 
         // Eyebrow
-        const browX = isRight ? 1 : -1;
         ctx.beginPath();
-        ctx.moveTo(-14 * s, -20 * s - browRaise);
-        ctx.quadraticCurveTo(0, -26 * s - browRaise - (this.mood === 'alert' ? 4 * s : 0),
-                            14 * s, -20 * s - browRaise);
+        ctx.moveTo(-16 * s, -24 * s - browRaise);
+        ctx.quadraticCurveTo(0, -30 * s - browRaise - (this.mood === 'alert' ? 5 * s : 0),
+                            16 * s, -24 * s - browRaise);
         ctx.strokeStyle = '#1a3a1a';
-        ctx.lineWidth = 3 * s;
+        ctx.lineWidth = 3.5 * s;
         ctx.lineCap = 'round';
         ctx.stroke();
 
-        // Eye white (large cartoon eye)
+        // Eye white
         ctx.save();
-        ctx.scale(1, eyeOpenness);
+        ctx.scale(1, eyeOpen);
         ctx.beginPath();
-        ctx.ellipse(0, 0, 18 * s, 22 * s, 0, 0, Math.PI * 2);
+        ctx.ellipse(0, 0, 21 * s, 26 * s, 0, 0, Math.PI * 2);
         ctx.fillStyle = '#FFFFFF';
         ctx.fill();
         ctx.strokeStyle = '#1a3a1a';
@@ -571,36 +538,40 @@ class DollarAvatar {
 
         // Iris
         ctx.beginPath();
-        ctx.arc(lookX * 0.6, lookY * 0.5, 11 * s, 0, Math.PI * 2);
-        ctx.fillStyle = '#2E7D32';
+        ctx.arc(lookX * 0.5, lookY * 0.4, 13 * s, 0, Math.PI * 2);
+        const irisGrad = ctx.createRadialGradient(lookX * 0.5, lookY * 0.4, 2 * s, lookX * 0.5, lookY * 0.4, 13 * s);
+        irisGrad.addColorStop(0, '#43A047');
+        irisGrad.addColorStop(0.7, '#2E7D32');
+        irisGrad.addColorStop(1, '#1B5E20');
+        ctx.fillStyle = irisGrad;
         ctx.fill();
 
         // Pupil
         ctx.beginPath();
-        ctx.arc(lookX * 0.7, lookY * 0.6, 6 * s, 0, Math.PI * 2);
+        ctx.arc(lookX * 0.6, lookY * 0.5, 7 * s, 0, Math.PI * 2);
         ctx.fillStyle = '#0a0a0a';
         ctx.fill();
 
         // Eye shine (large)
         ctx.beginPath();
-        ctx.arc(lookX * 0.4 + 4 * s, lookY * 0.3 - 5 * s, 4 * s, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+        ctx.arc(lookX * 0.3 + 5 * s, lookY * 0.2 - 6 * s, 5 * s, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
         ctx.fill();
 
         // Eye shine (small)
         ctx.beginPath();
-        ctx.arc(lookX * 0.4 - 2 * s, lookY * 0.3 + 3 * s, 2 * s, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+        ctx.arc(lookX * 0.3 - 3 * s, lookY * 0.2 + 4 * s, 2.5 * s, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
         ctx.fill();
 
-        ctx.restore(); // un-scale for blink
+        ctx.restore(); // un-scale blink
 
-        // Eyelid (when alert, half-lidded skeptical look)
+        // Half-lid (cautious)
         if (this.mood === 'cautious') {
             ctx.beginPath();
-            ctx.ellipse(0, -5 * s, 20 * s, 14 * s, 0, Math.PI, Math.PI * 2);
-            const bodyColors = this._getMoodBodyColors();
-            ctx.fillStyle = bodyColors.main;
+            ctx.ellipse(0, -6 * s, 23 * s, 16 * s, 0, Math.PI, Math.PI * 2);
+            const colors = this._getMoodBodyColors();
+            ctx.fillStyle = colors.main;
             ctx.fill();
         }
 
@@ -611,28 +582,26 @@ class DollarAvatar {
         ctx.save();
         ctx.translate(mx, my);
 
-        const open = this.isTalking ? this.mouthOpenness : 0;
+        const open = this.mouthOpenness;
 
         switch (this.mood) {
             case 'celebrating': {
-                // Big happy smile
                 ctx.beginPath();
-                ctx.moveTo(-25 * s, -5 * s);
-                ctx.quadraticCurveTo(0, 20 * s + open * 15 * s, 25 * s, -5 * s);
-                if (open > 0.3) {
-                    // Open mouth
-                    ctx.quadraticCurveTo(0, 5 * s, -25 * s, -5 * s);
-                    ctx.fillStyle = '#8B0000';
+                ctx.moveTo(-28 * s, -5 * s);
+                ctx.quadraticCurveTo(0, 22 * s + open * 16 * s, 28 * s, -5 * s);
+                if (open > 0.25) {
+                    ctx.quadraticCurveTo(0, 6 * s, -28 * s, -5 * s);
+                    ctx.fillStyle = '#7B0000';
                     ctx.fill();
                     // Tongue
                     ctx.beginPath();
-                    ctx.ellipse(0, 5 * s + open * 5 * s, 8 * s, 5 * s, 0, 0, Math.PI);
+                    ctx.ellipse(0, 6 * s + open * 6 * s, 10 * s, 6 * s, 0, 0, Math.PI);
                     ctx.fillStyle = '#FF6B6B';
                     ctx.fill();
                 }
                 ctx.beginPath();
-                ctx.moveTo(-25 * s, -5 * s);
-                ctx.quadraticCurveTo(0, 20 * s + open * 15 * s, 25 * s, -5 * s);
+                ctx.moveTo(-28 * s, -5 * s);
+                ctx.quadraticCurveTo(0, 22 * s + open * 16 * s, 28 * s, -5 * s);
                 ctx.strokeStyle = '#1a3a1a';
                 ctx.lineWidth = 3 * s;
                 ctx.lineCap = 'round';
@@ -640,52 +609,49 @@ class DollarAvatar {
                 break;
             }
             case 'confident': {
-                // Friendly smile
                 ctx.beginPath();
-                ctx.moveTo(-20 * s, 0);
-                ctx.quadraticCurveTo(0, 14 * s + open * 12 * s, 20 * s, 0);
-                if (open > 0.3) {
-                    ctx.quadraticCurveTo(0, 4 * s, -20 * s, 0);
-                    ctx.fillStyle = '#8B0000';
+                ctx.moveTo(-22 * s, 0);
+                ctx.quadraticCurveTo(0, 16 * s + open * 14 * s, 22 * s, 0);
+                if (open > 0.25) {
+                    ctx.quadraticCurveTo(0, 5 * s, -22 * s, 0);
+                    ctx.fillStyle = '#7B0000';
                     ctx.fill();
                 }
                 ctx.beginPath();
-                ctx.moveTo(-20 * s, 0);
-                ctx.quadraticCurveTo(0, 14 * s + open * 12 * s, 20 * s, 0);
+                ctx.moveTo(-22 * s, 0);
+                ctx.quadraticCurveTo(0, 16 * s + open * 14 * s, 22 * s, 0);
                 ctx.strokeStyle = '#1a3a1a';
-                ctx.lineWidth = 2.5 * s;
+                ctx.lineWidth = 3 * s;
                 ctx.lineCap = 'round';
                 ctx.stroke();
                 break;
             }
             case 'cautious': {
-                // Slight frown / flat
                 ctx.beginPath();
-                ctx.moveTo(-16 * s, 2 * s);
-                ctx.quadraticCurveTo(0, -4 * s + open * 10 * s, 16 * s, 2 * s);
-                if (open > 0.3) {
-                    ctx.quadraticCurveTo(0, 6 * s, -16 * s, 2 * s);
-                    ctx.fillStyle = '#8B0000';
+                ctx.moveTo(-18 * s, 2 * s);
+                ctx.quadraticCurveTo(0, -4 * s + open * 12 * s, 18 * s, 2 * s);
+                if (open > 0.25) {
+                    ctx.quadraticCurveTo(0, 6 * s, -18 * s, 2 * s);
+                    ctx.fillStyle = '#7B0000';
                     ctx.fill();
                 }
                 ctx.beginPath();
-                ctx.moveTo(-16 * s, 2 * s);
-                ctx.quadraticCurveTo(0, -4 * s + open * 10 * s, 16 * s, 2 * s);
+                ctx.moveTo(-18 * s, 2 * s);
+                ctx.quadraticCurveTo(0, -4 * s + open * 12 * s, 18 * s, 2 * s);
                 ctx.strokeStyle = '#1a3a1a';
-                ctx.lineWidth = 2.5 * s;
+                ctx.lineWidth = 3 * s;
                 ctx.lineCap = 'round';
                 ctx.stroke();
                 break;
             }
             case 'alert': {
-                // O-mouth / worried
-                const oSize = 8 + open * 8;
+                const oSize = 9 + open * 9;
                 ctx.beginPath();
-                ctx.ellipse(0, 2 * s, oSize * s, (oSize + 4) * s, 0, 0, Math.PI * 2);
-                ctx.fillStyle = '#5a0000';
+                ctx.ellipse(0, 2 * s, oSize * s, (oSize + 5) * s, 0, 0, Math.PI * 2);
+                ctx.fillStyle = '#4a0000';
                 ctx.fill();
                 ctx.strokeStyle = '#1a3a1a';
-                ctx.lineWidth = 2.5 * s;
+                ctx.lineWidth = 3 * s;
                 ctx.stroke();
                 break;
             }
@@ -695,63 +661,80 @@ class DollarAvatar {
     }
 
     _drawHat(ctx, s) {
-        // Top hat / bowler on the dollar bill
         ctx.save();
         ctx.translate(0, -15 * s);
 
-        const hatY = -70 * s;
+        // Follow-through: hat lags behind body rotation
+        ctx.rotate(this.hatLagAngle);
 
-        // Hat brim
+        const hatY = -78 * s;
+
+        // Brim
         ctx.beginPath();
-        ctx.ellipse(0, hatY + 2 * s, 48 * s, 10 * s, 0, 0, Math.PI * 2);
-        ctx.fillStyle = '#1a1a2e';
+        ctx.ellipse(0, hatY + 2 * s, 54 * s, 12 * s, 0, 0, Math.PI * 2);
+        const brimGrad = ctx.createLinearGradient(-54 * s, hatY, 54 * s, hatY + 4 * s);
+        brimGrad.addColorStop(0, '#22223B');
+        brimGrad.addColorStop(1, '#141428');
+        ctx.fillStyle = brimGrad;
         ctx.fill();
         ctx.strokeStyle = '#FFD700';
         ctx.lineWidth = 2 * s;
         ctx.stroke();
 
         // Hat body
-        this._roundRect(ctx, -30 * s, hatY - 40 * s, 60 * s, 42 * s, 6 * s);
-        ctx.fillStyle = '#1a1a2e';
+        this._roundRect(ctx, -34 * s, hatY - 46 * s, 68 * s, 48 * s, 8 * s);
+        const hatGrad = ctx.createLinearGradient(-34 * s, hatY - 46 * s, 34 * s, hatY + 2 * s);
+        hatGrad.addColorStop(0, '#2A2A4A');
+        hatGrad.addColorStop(1, '#1a1a30');
+        ctx.fillStyle = hatGrad;
         ctx.fill();
         ctx.strokeStyle = '#333355';
         ctx.lineWidth = 1.5 * s;
         ctx.stroke();
 
-        // Gold band
-        ctx.fillStyle = '#FFD700';
-        ctx.fillRect(-30 * s, hatY - 6 * s, 60 * s, 8 * s);
+        // Highlight on hat
+        ctx.beginPath();
+        ctx.ellipse(-8 * s, hatY - 30 * s, 14 * s, 18 * s, -0.2, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255,255,255,0.03)';
+        ctx.fill();
 
-        // $ on hat band
-        ctx.font = `bold ${10 * s}px serif`;
+        // Gold band
+        const bandGrad = ctx.createLinearGradient(-34 * s, hatY - 8 * s, 34 * s, hatY);
+        bandGrad.addColorStop(0, '#C8902E');
+        bandGrad.addColorStop(0.5, '#FFD700');
+        bandGrad.addColorStop(1, '#C8902E');
+        ctx.fillStyle = bandGrad;
+        ctx.fillRect(-34 * s, hatY - 8 * s, 68 * s, 10 * s);
+
+        // $ on band
+        ctx.font = `bold ${12 * s}px serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillStyle = '#1a1a2e';
-        ctx.fillText('$', 0, hatY - 2 * s);
+        ctx.fillText('$', 0, hatY - 3 * s);
 
         ctx.restore();
     }
 
-    // --- Effects ---
+    // === Effects ===
 
     _drawSparkles(ctx) {
         for (const sp of this.sparkles) {
             ctx.save();
             ctx.translate(sp.x, sp.y);
-            ctx.rotate(sp.rotation + this.t * 3);
-            ctx.globalAlpha = sp.life;
+            ctx.rotate(sp.rotation);
+            ctx.globalAlpha = sp.life * sp.life; // quadratic fade for smoother feel
 
-            const size = sp.size * sp.life;
+            const sz = sp.size * (0.3 + sp.life * 0.7);
             ctx.beginPath();
-            // 4-point star
             for (let i = 0; i < 4; i++) {
                 const angle = (i / 4) * Math.PI * 2;
-                const px = Math.cos(angle) * size;
-                const py = Math.sin(angle) * size;
+                const px = Math.cos(angle) * sz;
+                const py = Math.sin(angle) * sz;
                 if (i === 0) ctx.moveTo(px, py);
                 else ctx.lineTo(px, py);
-                const midAngle = angle + Math.PI / 4;
-                ctx.lineTo(Math.cos(midAngle) * size * 0.3, Math.sin(midAngle) * size * 0.3);
+                const mid = angle + Math.PI / 4;
+                ctx.lineTo(Math.cos(mid) * sz * 0.3, Math.sin(mid) * sz * 0.3);
             }
             ctx.closePath();
             ctx.fillStyle = sp.color;
@@ -761,7 +744,7 @@ class DollarAvatar {
         }
     }
 
-    // --- Utility ---
+    // === Utility ===
 
     _roundRect(ctx, x, y, w, h, r) {
         ctx.beginPath();
@@ -780,34 +763,19 @@ class DollarAvatar {
     _getMoodBodyColors() {
         switch (this.mood) {
             case 'confident':
-                return {
-                    light: '#5CB85C', main: '#3D8B3D', dark: '#2E6B2E',
-                    border: '#1B5E20', accent: '#1B5E20'
-                };
+                return { light: '#5CB85C', main: '#3D8B3D', dark: '#2E6B2E', border: '#1B5E20', accent: '#1B5E20' };
             case 'celebrating':
-                return {
-                    light: '#81C784', main: '#4CAF50', dark: '#388E3C',
-                    border: '#FFD700', accent: '#FFD700'
-                };
+                return { light: '#81C784', main: '#4CAF50', dark: '#388E3C', border: '#FFD700', accent: '#FFD700' };
             case 'cautious':
-                return {
-                    light: '#A5D6A7', main: '#66996B', dark: '#4A7A4F',
-                    border: '#5D7A3E', accent: '#4A6A2E'
-                };
+                return { light: '#A5D6A7', main: '#66996B', dark: '#4A7A4F', border: '#5D7A3E', accent: '#4A6A2E' };
             case 'alert':
-                return {
-                    light: '#E57373', main: '#C06040', dark: '#8B3A2A',
-                    border: '#B71C1C', accent: '#FFD700'
-                };
+                return { light: '#E57373', main: '#C06040', dark: '#8B3A2A', border: '#B71C1C', accent: '#FFD700' };
             default:
-                return {
-                    light: '#5CB85C', main: '#3D8B3D', dark: '#2E6B2E',
-                    border: '#1B5E20', accent: '#1B5E20'
-                };
+                return { light: '#5CB85C', main: '#3D8B3D', dark: '#2E6B2E', border: '#1B5E20', accent: '#1B5E20' };
         }
     }
 
-    // --- Public API ---
+    // === Public API ===
 
     setMood(mood) {
         if (['confident', 'cautious', 'alert', 'celebrating'].includes(mood)) {
@@ -820,70 +788,13 @@ class DollarAvatar {
 
         const s = report.scoreboard;
         const decisions = report.decisions || [];
-
         const hasReject = decisions.some(d => d.verdict === 'REJECT');
         const hasCashProtection = decisions.some(d => d.key === 'cash_protection_mode');
 
-        if (hasCashProtection) {
-            this.setMood('alert');
-        } else if (hasReject) {
-            this.setMood('cautious');
-        } else if (s.net_margin > 0.3 && s.utilization > 0.7 && s.rebook_rate > 0.45) {
-            this.setMood('celebrating');
-        } else {
-            this.setMood('confident');
-        }
-    }
-
-    /**
-     * Move to a specific screen position.
-     */
-    moveTo(x, y) {
-        this.targetX = x;
-        this.targetY = y;
-        this.roamTimer = 0; // reset roam timer
-    }
-
-    /**
-     * Move next to a DOM element (e.g., a dashboard section).
-     */
-    moveToElement(selector, side = 'right') {
-        const el = document.querySelector(selector);
-        if (!el) return;
-        const rect = el.getBoundingClientRect();
-        if (side === 'right') {
-            this.moveTo(rect.right + 10, rect.top);
-        } else {
-            this.moveTo(rect.left - this.charW - 10, rect.top);
-        }
-    }
-
-    /**
-     * Move to a named station.
-     */
-    moveToStation(name) {
-        this._updateStations();
-        const st = this.stations[name];
-        if (st) {
-            this.currentStation = name;
-            this.targetX = st.x;
-            this.targetY = st.y;
-            this.roamTimer = 0;
-        }
-    }
-
-    /**
-     * Get the current center position of the avatar (for speech bubble).
-     */
-    getPosition() {
-        return {
-            x: this.posX + this.charW / 2,
-            y: this.posY,
-            left: this.posX,
-            top: this.posY,
-            right: this.posX + this.charW,
-            bottom: this.posY + this.charH,
-        };
+        if (hasCashProtection) this.setMood('alert');
+        else if (hasReject) this.setMood('cautious');
+        else if (s.net_margin > 0.3 && s.utilization > 0.7 && s.rebook_rate > 0.45) this.setMood('celebrating');
+        else this.setMood('confident');
     }
 
     talk(duration = 120) {
@@ -894,36 +805,47 @@ class DollarAvatar {
 
     wave() {
         this.isWaving = true;
-        this.waveTimer = 90;
+        this.waveTimer = 100;
         this.wavePhase = 0;
+        this.waveAnticipation = 0;
     }
 
     sparkle() {
         const cx = this.w / 2;
         const cy = this.h / 2;
-        const colors = ['#FFD700', '#FFEC8B', '#FFF8DC', '#FFD700', '#98FB98'];
+        const colors = ['#FFD700', '#FFEC8B', '#FFF8DC', '#FFD700', '#A8E6A3'];
 
-        for (let i = 0; i < 20; i++) {
+        for (let i = 0; i < 24; i++) {
             const angle = Math.random() * Math.PI * 2;
-            const dist = 40 + Math.random() * 80;
+            const dist = 50 + Math.random() * 100;
             this.sparkles.push({
-                x: cx + Math.cos(angle) * dist,
-                y: cy + Math.sin(angle) * dist - 20,
-                vx: (Math.random() - 0.5) * 3,
-                vy: Math.random() * 2 + 1,
-                size: 4 + Math.random() * 10,
+                x: cx + Math.cos(angle) * dist * 0.3,
+                y: cy + Math.sin(angle) * dist * 0.3 - 30,
+                vx: Math.cos(angle) * (1 + Math.random() * 2.5),
+                vy: Math.sin(angle) * (1 + Math.random() * 2) + 0.5,
+                size: 5 + Math.random() * 12,
                 life: 1.0,
                 rotation: Math.random() * Math.PI,
+                rotSpeed: (Math.random() - 0.5) * 0.15,
                 color: colors[Math.floor(Math.random() * colors.length)],
             });
         }
 
-        // Bounce squash effect
-        this.targetSquashX = 1.15;
-        this.targetSquashY = 0.88;
+        // Squash & stretch bounce
+        this.targetSquashX = 1.18;
+        this.targetSquashY = 0.85;
         setTimeout(() => {
-            this.targetSquashX = 0.92;
-            this.targetSquashY = 1.1;
+            this.targetSquashX = 0.9;
+            this.targetSquashY = 1.12;
+        }, 120);
+    }
+
+    bounce() {
+        this.targetSquashY = 0.8;
+        this.targetSquashX = 1.15;
+        setTimeout(() => {
+            this.targetSquashY = 1.15;
+            this.targetSquashX = 0.88;
         }, 100);
     }
 }

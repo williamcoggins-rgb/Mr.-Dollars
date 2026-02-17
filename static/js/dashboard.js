@@ -1,14 +1,57 @@
 /**
- * Mr. Dollars — Dashboard Controller
+ * Mr. Dollars — Dashboard Controller v2
  *
- * Renders report data into the premium bank vault UI.
- * Uses glass-card components, monospace values, serif headers.
+ * Professional rendering with:
+ * - Staggered card entrance animations (reveal-item class)
+ * - Animated number counting (countUp)
+ * - Status-indicator edge glow on metric cards
+ * - Smooth DOM transitions
  */
 
 class Dashboard {
     constructor() {
         this.currentReport = null;
     }
+
+    // === Animated number counter ===
+    static countUp(element, target, format, duration = 900) {
+        const start = performance.now();
+        const initial = 0;
+
+        function step(now) {
+            const elapsed = now - start;
+            const progress = Math.min(elapsed / duration, 1);
+            // Ease-out-expo
+            const eased = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
+            const current = initial + (target - initial) * eased;
+
+            switch (format) {
+                case 'pct':
+                    element.textContent = `${(current * 100).toFixed(1)}%`;
+                    break;
+                case 'dollar':
+                    element.textContent = `$${current.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                    break;
+                default:
+                    element.textContent = String(Math.round(current));
+            }
+
+            if (progress < 1) requestAnimationFrame(step);
+        }
+
+        requestAnimationFrame(step);
+    }
+
+    // === Staggered reveal ===
+    static revealCards(container, selector = '.glass-card') {
+        const cards = container.querySelectorAll(selector);
+        cards.forEach((card, i) => {
+            card.classList.add('reveal-item');
+            card.style.animationDelay = `${i * 0.08}s`;
+        });
+    }
+
+    // === Renderers ===
 
     renderScoreboard(scoreboard, variance) {
         const grid = document.getElementById('scoreboard-grid');
@@ -29,7 +72,6 @@ class Dashboard {
             const value = scoreboard[m.key];
             if (value === undefined) return '';
 
-            const formatted = this._formatValue(value, m.format);
             const colorClass = this._getColorClass(value, m);
             const v = variance && variance[m.key];
             let deltaHtml = '';
@@ -52,12 +94,24 @@ class Dashboard {
             }
 
             return `
-                <div class="glass-card metric-card">
+                <div class="glass-card metric-card status-${colorClass}" data-value="${value}" data-format="${m.format}">
                     <div class="label">${m.label}</div>
-                    <div class="value ${colorClass}">${formatted}</div>
+                    <div class="value ${colorClass}" data-count-target="${value}" data-count-format="${m.format}">0</div>
                     ${deltaHtml}${barHtml}
                 </div>`;
         }).join('');
+
+        // Staggered reveal
+        Dashboard.revealCards(grid);
+
+        // Animate numbers after a brief delay for the reveal to start
+        setTimeout(() => {
+            grid.querySelectorAll('[data-count-target]').forEach(el => {
+                const target = parseFloat(el.dataset.countTarget);
+                const format = el.dataset.countFormat;
+                Dashboard.countUp(el, target, format, 1100);
+            });
+        }, 200);
     }
 
     renderDecisions(decisions) {
@@ -82,6 +136,8 @@ class Dashboard {
                     </div>
                 </div>`;
         }).join('');
+
+        Dashboard.revealCards(container);
     }
 
     renderActions(actions) {
@@ -98,6 +154,8 @@ class Dashboard {
                 <span class="action-num">${i + 1}</span>
                 <span>${a}</span>
             </div>`).join('');
+
+        Dashboard.revealCards(container);
     }
 
     renderLoomStatus(status) {
